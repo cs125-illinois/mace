@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "es2019",
+    "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "moduleResolution": "node",
+    "typeRoots": ["node_modules/@types", "./types"],
+    "jsx": "react",
+    "baseUrl": ".",
+    "paths": {
+      "mace-types": ["types/index"],
+      "react-mace": ["client/index"]
+    }
+  }
+}
