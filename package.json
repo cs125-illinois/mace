@@ -2,13 +2,13 @@
   "private": true,
   "version": "2020.4.0",
   "scripts": {
-    "backend": "docker-compose up",
+    "backend": "docker-compose up > /dev/null",
     "build:client": "rm -rf client/dist && GIT_COMMIT=$(git show --no-patch --format=%h) rollup -c",
     "build:server": "rm -rf server/dist && GIT_COMMIT=$(git show --no-patch --format=%h) webpack",
     "check": "npm run eslint && npm run tsc && npm run prettier && npm run depcheck",
     "client": "GIT_COMMIT=$(git show --no-patch --format=%h) rollup -c -w",
-    "depcheck": "depcheck --ignore-dirs dist --ignores=@types/*,@hot-loader/react-dom,env-cmd,parcel,ts-node,concurrently,tsconfig-paths,webpack-cli,@mdx-js/parcel-plugin-mdx,mace-types,react-mace",
-    "eslint": "eslint --fix server/ example/ client/ types/ --max-warnings=0 --ext .ts,.tsx",
+    "depcheck": "depcheck --ignore-dirs dist --ignores=@types/*,@hot-loader/react-dom,env-cmd,parcel,ts-node,concurrently,tsconfig-paths,webpack-cli,@mdx-js/parcel-plugin-mdx,@typescript-eslint/*,mace-types,react-mace",
+    "eslint": "eslint --fix server/ example/ client/ types/ --max-warnings=0 --ext .js,.ts,.tsx",
     "ncu": "ncu",
     "server": "GIT_COMMIT=$(git show --no-patch --format=%h) nodemon",
     "start": "concurrently -n server,client,example,backend --handle-input \"npm run server\" \"npm run client\" \"parcel example/index.html\" \"npm run backend\"",
@@ -17,8 +17,10 @@
     "prettier": "prettier --write client/ example/ server/ types/ .vscode/ *.json *.js && prettier-package-json --write"
   },
   "dependencies": {
+    "@cs125/react-google-login": "^2020.2.3",
     "@koa/cors": "^3.0.0",
     "@types/uuid": "^7.0.2",
+    "google-auth-library": "^6.0.0",
     "koa": "^2.11.0",
     "koa-bodyparser": "^4.3.0",
     "koa-easy-ws": "https://github.com/cs125-illinois/koa-easy-ws.git",
@@ -50,6 +52,7 @@
     "@typescript-eslint/eslint-plugin": "^2.28.0",
     "@typescript-eslint/parser": "^2.28.0",
     "ace-builds": "^1.4.11",
+    "babel-eslint": "^10.1.0",
     "babel-polyfill": "^6.26.0",
     "concurrently": "^5.1.0",
     "depcheck": "^0.9.2",
@@ -92,7 +95,8 @@
     "watch": [
       "package.json",
       "package-lock.json",
-      "server/index.ts"
+      "server/index.ts",
+      "types/index.ts"
     ],
     "exec": "env-cmd ts-node -r tsconfig-paths/register server/index.ts"
   },

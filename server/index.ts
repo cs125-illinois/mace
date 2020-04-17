@@ -7,14 +7,16 @@ import cors from "@koa/cors"
 import websocket from "koa-easy-ws"
 
 import { MongoClient as mongo } from "mongodb"
+import { OAuth2Client } from "google-auth-library"
 
 import WebSocket from "ws"
-import { SaveMessage, ConnectionQuery, UpdateMessage, ClientMessages, GetMessage } from "mace-types"
+import { SaveMessage, ConnectionQuery, UpdateMessage, GetMessage } from "mace-types"
 
 import { v4 as uuidv4 } from "uuid"
 
 const app = new Koa()
 const router = new Router<{}, { ws: () => Promise<WebSocket> }>()
+const googleClient = process.env.GOOGLE_CLIENT_ID && new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
 
 const client = mongo.connect(process.env.MONGODB as string, { useNewUrlParser: true, useUnifiedTopology: true })
 const maceCollection = client.then((c) =>
@@ -23,23 +25,22 @@ const maceCollection = client.then((c) =>
 
 const websocketsForClient: Record<string, Array<WebSocket>> = {}
 
-function doUpdate(clientId: string, editorId: string, value: string, saveId: string = uuidv4()): void {
+async function doUpdate(clientId: string, editorId: string, value: string, saveId: string = uuidv4()): Promise<void> {
   const update = UpdateMessage.check({
     type: "update",
     editorId,
     saveId,
     value,
   })
-  Promise.all(
+  await Promise.all(
     _.forEach(websocketsForClient[clientId], (ws) => {
       ws.send(JSON.stringify(update))
     })
   )
 }
 
-async function doSave(clientId: string, message: SaveMessage): Promise<void> {
+async function doSave(clientId: string, browserId: string, message: SaveMessage): Promise<void> {
   const { editorId, saveId, value, deltas } = message
-
   await (await maceCollection).insertOne({
     saved: new Date(),
     clientId,
@@ -48,8 +49,17 @@ async function doSave(clientId: string, message: SaveMessage): Promise<void> {
     value,
     deltas,
   })
-
-  doUpdate(clientId, editorId, value, saveId)
+  if (browserId !== clientId) {
+    await (await maceCollection).insertOne({
+      saved: new Date(),
+      clientId: browserId,
+      editorId,
+      saveId,
+      value,
+      deltas,
+    })
+  }
+  await doUpdate(clientId, editorId, value, saveId)
 }
 
 async function doGet(clientId: string, message: GetMessage): Promise<void> {
@@ -68,7 +78,7 @@ async function doGet(clientId: string, message: GetMessage): Promise<void> {
     )[0].value
   } catch (err) {}
   if (value) {
-    doUpdate(clientId, editorId, value)
+    await doUpdate(clientId, editorId, value)
   }
 }
 
@@ -86,7 +96,26 @@ router.get("/", async (ctx) => {
   if (!ctx.ws) {
     return ctx.throw(404)
   }
-  const { browserId: clientId } = ConnectionQuery.check(ctx.request.query)
+  const connectionQuery = ConnectionQuery.check(ctx.request.query)
+  const { browserId } = connectionQuery
+  const { googleToken: idToken } = connectionQuery
+  let clientId = browserId
+
+  if (idToken && googleClient) {
+    try {
+      const email = (
+        await googleClient.verifyIdToken({
+          idToken,
+          audience: process.env.GOOGLE_CLIENT_ID as string,
+        })
+      ).getPayload()?.email
+      if (email) {
+        clientId = email
+      }
+    } catch (err) {}
+  }
+  clientId = `${ctx.headers.origin}/${clientId}`
+  const fullBrowserId = `${ctx.headers.origin}/${browserId}`
 
   const ws = await ctx.ws()
   if (websocketsForClient[clientId]) {
@@ -95,14 +124,15 @@ router.get("/", async (ctx) => {
     websocketsForClient[clientId] = [ws]
   }
 
-  ws.on("message", (data) => {
-    ClientMessages.match(
-      (save) => doSave(clientId, save),
-      (get) => doGet(clientId, get)
-    )(JSON.parse(data.toString()))
-  })
-  ws.on("pong", () => {
-    console.log("pong")
+  ws.on("message", async (data) => {
+    const message = JSON.parse(data.toString())
+    if (SaveMessage.guard(message)) {
+      await doSave(clientId, fullBrowserId, message)
+    } else if (GetMessage.guard(message)) {
+      await doGet(clientId, message)
+    } else {
+      console.error(`Bad message: ${JSON.stringify(message, null, 2)}`)
+    }
   })
   ws.on("close", () => {
     terminate(clientId, ws)
@@ -120,8 +150,24 @@ maceCollection.then(async (c) => {
 
   await c.createIndex({ clientId: 1, editorId: 1, saved: 1 })
 
+  const validDomains = process.env.VALID_DOMAINS && process.env.VALID_DOMAINS.split(",").map((s) => s.trim)
   const port = process.env.BACKEND_PORT ? parseInt(process.env.BACKEND_PORT) : 8888
-  app.use(cors()).use(bodyParser()).use(websocket()).use(router.routes()).use(router.allowedMethods()).listen(port)
+  app
+    .use(
+      cors({
+        origin: (ctx) => {
+          if (validDomains && validDomains.includes(ctx.headers.origin)) {
+            return false
+          }
+          return ctx.headers.origin
+        },
+      })
+    )
+    .use(bodyParser())
+    .use(websocket())
+    .use(router.routes())
+    .use(router.allowedMethods())
+    .listen(port)
 })
 
 process.on("uncaughtException", (err) => {

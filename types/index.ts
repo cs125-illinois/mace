@@ -7,6 +7,7 @@ export const DeltaLocation = Record({
 export type DeltaLocation = Static<typeof DeltaLocation>
 
 export const Delta = Record({
+  timestamp: String.withConstraint((s) => Date.parse(s) !== NaN),
   start: DeltaLocation,
   end: DeltaLocation,
   action: String,
@@ -46,5 +47,10 @@ export const ServerMessages = Union(UpdateMessage)
 
 export const ConnectionQuery = Record({
   browserId: String,
-})
+}).And(
+  Partial({
+    googleToken: String,
+  })
+)
+
 export type ConnectionQuery = Static<typeof ConnectionQuery>

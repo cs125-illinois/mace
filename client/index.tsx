@@ -1,4 +1,4 @@
-import React, { Component, ReactElement, createContext, ReactNode } from "react"
+import React, { Component, ReactElement, createContext, ReactNode, createRef } from "react"
 import PropTypes from "prop-types"
 
 import AceEditor, { IAceOptions } from "react-ace"
@@ -26,16 +26,20 @@ const MaceContext = createContext<MaceContext>({
 
 interface MaceProviderProps {
   server: string
+  googleToken?: string
   children: ReactNode
 }
 interface MaceProviderState {
   connected: boolean
 }
+
 export type UpdateFunction = (update: UpdateMessage) => void
+type SaveFunction = () => void
 
 export class MaceProvider extends Component<MaceProviderProps, MaceProviderState> {
-  private connection: ReconnectingWebSocket
+  private connection: ReconnectingWebSocket | undefined
   private editorUpdaters: Record<string, Array<UpdateFunction>> = {}
+  private editorSavers: Record<string, SaveFunction> = {}
 
   private browserId: string
 
@@ -46,20 +50,23 @@ export class MaceProvider extends Component<MaceProviderProps, MaceProviderState
     localStorage.setItem("mace", this.browserId)
 
     this.state = { connected: false }
-
-    const connectionQuery = ConnectionQuery.check({
-      browserId: this.browserId,
-    })
-    this.connection = new ReconnectingWebSocket(`${props.server}?${queryString.stringify(connectionQuery)}`)
   }
 
-  componentDidMount(): void {
+  connect = (): void => {
+    if (this.connection) {
+      this.connection.close()
+    }
+    const connectionQuery = ConnectionQuery.check({
+      browserId: this.browserId,
+      googleToken: this.props.googleToken,
+    })
+
+    this.connection = new ReconnectingWebSocket(`${this.props.server}?${queryString.stringify(connectionQuery)}`)
     this.connection.onopen = (): void => {
       this.setState({ connected: true })
       Object.keys(this.editorUpdaters).forEach((editorId) => {
-        console.log(editorId)
         const message = GetMessage.check({ type: "get", editorId })
-        this.connection.send(JSON.stringify(message))
+        this.connection?.send(JSON.stringify(message))
       })
     }
     this.connection.onclose = (): void => {
@@ -68,6 +75,17 @@ export class MaceProvider extends Component<MaceProviderProps, MaceProviderState
     this.connection.onmessage = ({ data }): void => {
       ServerMessages.match((update) => this.update(update))(JSON.parse(data))
     }
+  }
+
+  componentDidMount(): void {
+    this.connect()
+  }
+
+  componentDidUpdate(prevProps: MaceProviderProps): void {
+    if (prevProps.googleToken === this.props.googleToken) {
+      return
+    }
+    this.connect()
   }
 
   update = (update: UpdateMessage): void => {
@@ -85,7 +103,7 @@ export class MaceProvider extends Component<MaceProviderProps, MaceProviderState
 
   componentWillUnmount(): void {
     try {
-      this.connection.close()
+      this.connection?.close()
     } catch (err) {}
   }
 
@@ -97,7 +115,7 @@ export class MaceProvider extends Component<MaceProviderProps, MaceProviderState
   }
 
   save = (message: SaveMessage): void => {
-    if (!this.state.connected) {
+    if (!this.connection || !this.state.connected) {
       throw new Error("mace server not connected")
     }
     SaveMessage.check(message)
@@ -115,6 +133,7 @@ export interface MaceProps extends IAceOptions {
   id: string
   children: string
   onExternalUpdate?: (value: string) => void
+  onSave?: (value: string) => void
 }
 export class MaceEditor extends Component<MaceProps> {
   static contextType = MaceContext
@@ -124,6 +143,8 @@ export class MaceEditor extends Component<MaceProps> {
     id: PropTypes.string,
     children: PropTypes.string.isRequired,
   }
+
+  private aceRef = createRef<AceEditor>()
 
   private lastSaveID: string | undefined
   private value: string
@@ -138,7 +159,13 @@ export class MaceEditor extends Component<MaceProps> {
   update: UpdateFunction = (update: UpdateMessage) => {
     if (update.saveId !== this.lastSaveID && this.props.onExternalUpdate) {
       this.props.onExternalUpdate(update.value)
+    } else if (update.saveId === this.lastSaveID && this.props.onSave) {
+      this.props.onSave(update.value)
     }
+  }
+
+  setValue = (value: string): void => {
+    this.aceRef?.current?.editor.setValue(value)
   }
 
   save = (): void => {
@@ -158,15 +185,13 @@ export class MaceEditor extends Component<MaceProps> {
     const { id, children, onChange, ...aceProps } = this.props // eslint-disable-line @typescript-eslint/no-unused-vars
     return (
       <AceEditor
+        ref={this.aceRef}
         onChange={(value, delta): void => {
           this.value = value
-          delta = Delta.check(delta)
-          this.deltas.push(delta)
+          this.deltas.push(Delta.check({ ...delta, timestamp: new Date().toISOString() }))
           try {
             onChange(value, delta)
-          } catch (err) {
-            console.log(err)
-          }
+          } catch (err) {}
         }}
         {...aceProps}
       />

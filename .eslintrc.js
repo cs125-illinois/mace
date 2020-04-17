@@ -1,9 +1,8 @@
 module.exports = {
-  parser: "@typescript-eslint/parser",
+  ignorePatterns: ["dist"],
+  parser: "babel-eslint",
   extends: [
     "plugin:react/recommended",
-    "plugin:@typescript-eslint/recommended",
-    "prettier/@typescript-eslint",
     "plugin:prettier/recommended",
   ],
   parserOptions: {
@@ -15,4 +14,16 @@ module.exports = {
       version: "detect",
     },
   },
+  overrides: [
+    {
+      files: ["**/*.ts", "**/*.tsx"],
+      parser: "@typescript-eslint/parser",
+      extends: [
+        "plugin:react/recommended",
+        "plugin:@typescript-eslint/recommended",
+        "prettier/@typescript-eslint",
+        "plugin:prettier/recommended",
+      ],
+    }
+  ]
 }

@@ -1,8 +1,10 @@
-import React, { Component, createRef, ReactElement } from "react"
+import React, { Component, createRef, ReactElement, ReactNode } from "react"
 import { hot } from "react-hot-loader"
 import PropTypes from "prop-types"
 
-import { Container } from "semantic-ui-react"
+import { GoogleLoginProvider, WithGoogleLogin, getTokens } from "@cs125/react-google-login"
+
+import { Container, Button } from "semantic-ui-react"
 
 import { MDXProvider } from "@mdx-js/react"
 import Content from "./index.mdx"
@@ -16,38 +18,74 @@ import ace from "ace-builds/src-noconflict/ace"
 const CDN = "https://cdn.jsdelivr.net/npm/ace-builds@1.4.11/src-min-noconflict"
 ace.config.set("basePath", CDN)
 
-class MacePlayground extends Component<MaceProps, { value: string }> {
+class MacePlayground extends Component<MaceProps, { value: string; saved: boolean; saving: boolean }> {
   private aceRef = createRef<MaceEditor>()
+  private originalValue: string
+  private savedValue: string
+
   constructor(props: MaceProps) {
     super(props)
-    this.state = { value: props.children || "" }
+
+    this.originalValue = props.children || ""
+    this.savedValue = this.originalValue
+
+    this.state = { value: this.originalValue, saved: true, saving: false }
   }
 
   save = (): void => {
+    this.setState({ saving: true })
     this.aceRef?.current?.save()
   }
 
+  reset = (): void => {
+    this.aceRef?.current?.setValue(this.originalValue)
+  }
+
   render(): ReactElement {
+    const { saved, saving } = this.state
+
+    let saveButtonText = "Save"
+    if (saving) {
+      saveButtonText = "Saving"
+    } else if (saved) {
+      saveButtonText = "Saved"
+    }
+    const original = this.state.value === this.originalValue
+
     const commands = (this.props.commands || []).concat([
       {
         name: "save",
-        bindKey: { win: "Ctrl-Enter", mac: "Ctrl-Enter" },
+        bindKey: { win: "Ctrl-s", mac: "Ctrl-s" },
         exec: this.save,
       },
     ])
     return (
-      <MaceEditor
-        ref={this.aceRef}
-        value={this.state.value}
-        onExternalUpdate={(value: string): void => {
-          this.setState({ value })
-        }}
-        onChange={(value: string): void => {
-          this.setState({ value })
-        }}
-        commands={commands}
-        {...this.props}
-      />
+      <Container style={{ position: "relative" }}>
+        <MaceEditor
+          style={{ paddingBottom: "1rem" }}
+          ref={this.aceRef}
+          value={this.state.value}
+          onExternalUpdate={(value: string): void => {
+            this.savedValue = value
+            this.setState({ value })
+          }}
+          onSave={(value: string): void => {
+            this.savedValue = value
+            this.setState({ saving: false, saved: value === this.savedValue })
+          }}
+          onChange={(value: string): void => {
+            this.setState({ value, saved: value === this.savedValue })
+          }}
+          commands={commands}
+          {...this.props}
+        />
+        <Button floated="right" size="mini" disabled={original} onClick={this.reset}>
+          Reset
+        </Button>
+        <Button floated="right" size="mini" positive disabled={saved} loading={saving} onClick={this.save}>
+          {saveButtonText}
+        </Button>
+      </Container>
     )
   }
 }
@@ -96,12 +134,24 @@ const components = {
   code: CodeBlock,
 }
 const App: React.SFC = () => (
-  <MaceProvider server="ws://localhost:8888">
-    <Container text style={{ paddingTop: 16 }}>
-      <MDXProvider components={components}>
-        <Content />
-      </MDXProvider>
-    </Container>
-  </MaceProvider>
+  <GoogleLoginProvider
+    // eslint-disable-next-line @typescript-eslint/camelcase
+    clientConfig={{ client_id: "948918026196-eh2lctl77k8pik8ugvlq1hf69vqoafd4.apps.googleusercontent.com" }}
+  >
+    <WithGoogleLogin>
+      {({ user }): JSX.Element => {
+        const googleToken = user ? getTokens(user).id_token : undefined
+        return (
+          <MaceProvider server="ws://localhost:8888" googleToken={googleToken}>
+            <Container text style={{ paddingTop: 16 }}>
+              <MDXProvider components={components}>
+                <Content />
+              </MDXProvider>
+            </Container>
+          </MaceProvider>
+        )
+      }}
+    </WithGoogleLogin>
+  </GoogleLoginProvider>
 )
 export default hot(module)(App)
