@@ -19,7 +19,7 @@
     "start": "concurrently -n server,client,example,backend --handle-input \"npm run server\" \"npm run client\" \"parcel example/index.html\" \"npm run backend\"",
     "poststart": "docker-compose down",
     "tsc": "tsc --noEmit",
-    "prettier": "prettier --write client/ example/ server/ types/ .vscode/ *.json *.js && prettier-package-json --write"
+    "prettier": "prettier --write client/ example/ server/ types/ .vscode/ *.json *.js *.ts && prettier-package-json --write"
   },
   "types": "client/dist/index.d.ts",
   "dependencies": {
