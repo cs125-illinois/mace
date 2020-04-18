@@ -1,8 +1,14 @@
 {
   "name": "@cs125/mace",
+  "author": "Geoffrey Challen <geoffrey.challen@gmail.com>",
+  "description": "Client and server support for saving and synchonizing Ace editor contents.",
+  "license": "MIT",
+  "repository": "https://github.com/cs125-illinois/mace",
+  "bugs": "https://github.com/cs125-illinois/mace/issues",
   "version": "2020.4.0",
   "main": "client/dist/index.cjs.js",
   "scripts": {
+    "prePublishOnly": "npm run check && npm run build:client",
     "backend": "docker-compose up > /dev/null",
     "build": "npm run build:client && npm run build:server",
     "build:client": "rm -rf client/dist && GIT_COMMIT=$(git show --no-patch --format=%h) rollup -c && cp index.d.ts client/dist/",
