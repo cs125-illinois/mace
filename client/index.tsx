@@ -40,7 +40,6 @@ type SaveFunction = () => void
 export class MaceProvider extends Component<MaceProviderProps, MaceProviderState> {
   private connection: ReconnectingWebSocket | undefined
   private editorUpdaters: Record<string, Array<UpdateFunction>> = {}
-  private editorSavers: Record<string, SaveFunction> = {}
 
   private browserId: string
 
@@ -102,7 +101,7 @@ export class MaceProvider extends Component<MaceProviderProps, MaceProviderState
     }
     this.editorUpdaters[editorId].forEach((updater) => updater(update))
     if (this.props.saveToLocalStorage) {
-      localStorage.setItem(editorId, JSON.stringify(update))
+      localStorage.setItem(`mace:${editorId}`, JSON.stringify(update))
     }
   }
 
@@ -117,12 +116,12 @@ export class MaceProvider extends Component<MaceProviderProps, MaceProviderState
       this.editorUpdaters[editorId] = []
     }
     this.editorUpdaters[editorId].push(updater)
-    if (this.props.saveToLocalStorage) {
-      const update = localStorage.getItem(editorId)
-      if (UpdateMessage.guard(update)) {
+    try {
+      const update = UpdateMessage.check(JSON.parse(localStorage.getItem(`mace:${editorId}`) as string))
+      if (update) {
         updater(update)
       }
-    }
+    } catch (err) {}
   }
 
   save = (message: SaveMessage): void => {
@@ -142,7 +141,6 @@ export class MaceProvider extends Component<MaceProviderProps, MaceProviderState
 
 export interface MaceProps extends IAceOptions {
   id: string
-  children: string
   onExternalUpdate?: (value: string) => void
   onSave?: (value: string) => void
 }
@@ -152,7 +150,6 @@ export class MaceEditor extends Component<MaceProps> {
 
   static propTypes = {
     id: PropTypes.string,
-    children: PropTypes.string.isRequired,
   }
 
   private aceRef = createRef<AceEditor>()
@@ -163,7 +160,7 @@ export class MaceEditor extends Component<MaceProps> {
 
   constructor(props: MaceProps, context: MaceContext) {
     super(props, context)
-    this.value = props.children
+    this.value = props.value
     context.register(this.props.id, this.update)
   }
 
