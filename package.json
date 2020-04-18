@@ -1,13 +1,18 @@
 {
-  "private": true,
+  "name": "@cs125/mace",
   "version": "2020.4.0",
+  "main": "client/dist/index.cjs.js",
   "scripts": {
     "backend": "docker-compose up > /dev/null",
-    "build:client": "rm -rf client/dist && GIT_COMMIT=$(git show --no-patch --format=%h) rollup -c",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "rm -rf client/dist && GIT_COMMIT=$(git show --no-patch --format=%h) rollup -c && cp index.d.ts client/dist/",
     "build:server": "rm -rf server/dist && GIT_COMMIT=$(git show --no-patch --format=%h) webpack",
     "check": "npm run eslint && npm run tsc && npm run prettier && npm run depcheck",
     "client": "GIT_COMMIT=$(git show --no-patch --format=%h) rollup -c -w",
     "depcheck": "depcheck --ignore-dirs dist --ignores=@types/*,@hot-loader/react-dom,env-cmd,parcel,ts-node,concurrently,tsconfig-paths,webpack-cli,@mdx-js/parcel-plugin-mdx,@typescript-eslint/*,mace-types,react-mace",
+    "docker:build": "npm run build:server && docker build . -t cs125/mace",
+    "docker:push": "docker push cs125/mace:latest && docker push cs125/mace:$npm_package_version",
+    "docker:tag": "docker tag cs125/mace:latest cs125/mace:$npm_package_version",
     "eslint": "eslint --fix server/ example/ client/ types/ --max-warnings=0 --ext .js,.ts,.tsx",
     "ncu": "ncu",
     "server": "GIT_COMMIT=$(git show --no-patch --format=%h) nodemon",
@@ -16,6 +21,7 @@
     "tsc": "tsc --noEmit",
     "prettier": "prettier --write client/ example/ server/ types/ .vscode/ *.json *.js && prettier-package-json --write"
   },
+  "types": "client/dist/index.d.ts",
   "dependencies": {
     "@cs125/react-google-login": "^2020.2.3",
     "@koa/cors": "^3.0.0",
@@ -27,11 +33,17 @@
     "koa-router": "^8.0.8",
     "lodash": "^4.17.15",
     "mongodb": "^3.5.6",
+    "mongodb-uri": "^0.9.7",
     "query-string": "^6.12.1",
     "reconnecting-websocket": "^4.4.0",
     "runtypes": "^4.2.0",
     "uuid": "^7.0.3",
     "ws": "^7.2.3"
+  },
+  "peerDependencies": {
+    "prop-types": "^15.7.2",
+    "react": "^16.13.1",
+    "react-ace": "^8.1.0"
   },
   "devDependencies": {
     "@hot-loader/react-dom": "^16.13.0",
@@ -41,9 +53,10 @@
     "@types/koa-bodyparser": "^4.3.0",
     "@types/koa-router": "^7.4.0",
     "@types/koa__cors": "^3.0.1",
-    "@types/lodash": "^4.14.149",
+    "@types/lodash": "^4.14.150",
     "@types/mongodb": "^3.5.8",
-    "@types/node": "^13.11.1",
+    "@types/mongodb-uri": "^0.9.0",
+    "@types/node": "13.11.1",
     "@types/react": "^16.9.34",
     "@types/react-dom": "^16.9.6",
     "@types/url-join": "^4.0.0",
