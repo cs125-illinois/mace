@@ -25,8 +25,7 @@ const MaceContext = createContext<MaceContext>({
 })
 
 interface MaceProviderProps {
-  server: string
-  saveToLocalStorage?: boolean
+  server?: string
   googleToken?: string
   children: ReactNode
 }
@@ -55,6 +54,9 @@ export class MaceProvider extends Component<MaceProviderProps, MaceProviderState
   connect = (): void => {
     if (this.connection) {
       this.connection.close()
+    }
+    if (!this.props.server) {
+      return
     }
     const connectionQuery = ConnectionQuery.check({
       browserId: this.browserId,
@@ -100,9 +102,7 @@ export class MaceProvider extends Component<MaceProviderProps, MaceProviderState
       return
     }
     this.editorUpdaters[editorId].forEach((updater) => updater(update))
-    if (this.props.saveToLocalStorage) {
-      localStorage.setItem(`mace:${editorId}`, JSON.stringify(update))
-    }
+    localStorage.setItem(`mace:${editorId}`, JSON.stringify(update))
   }
 
   componentWillUnmount(): void {
@@ -125,6 +125,16 @@ export class MaceProvider extends Component<MaceProviderProps, MaceProviderState
   }
 
   save = (message: SaveMessage): void => {
+    if (!this.props.server) {
+      const update = UpdateMessage.check({
+        type: "update",
+        editorId: message.editorId,
+        saveId: message.saveId,
+        value: message.value,
+      })
+      this.update(update)
+      return
+    }
     if (!this.connection || !this.state.connected) {
       throw new Error("mace server not connected")
     }

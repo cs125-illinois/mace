@@ -7,7 +7,10 @@ import { GoogleLoginProvider, WithGoogleLogin, getTokens } from "@cs125/react-go
 import { Container, Button } from "semantic-ui-react"
 
 import { MDXProvider } from "@mdx-js/react"
-import Content from "./index.mdx"
+
+import Start from "./start.mdx"
+import WithServer from "./withserver.mdx"
+import NoServer from "./noserver.mdx"
 
 import { MaceEditor, MaceProvider, MaceProps } from "../client"
 import Children from "react-children-utilities"
@@ -33,6 +36,9 @@ class MacePlayground extends Component<MaceProps, { value: string; saved: boolea
   }
 
   save = (): void => {
+    if (this.state.saved) {
+      return
+    }
     this.setState({ saving: true })
     this.aceRef?.current?.save()
   }
@@ -67,7 +73,7 @@ class MacePlayground extends Component<MaceProps, { value: string; saved: boolea
           value={this.state.value}
           onExternalUpdate={(value: string): void => {
             this.savedValue = value
-            this.setState({ value })
+            this.setState({ value, saved: value === this.savedValue })
           }}
           onSave={(value: string): void => {
             this.savedValue = value
@@ -142,13 +148,17 @@ const App: React.SFC = () => (
       {({ user }): JSX.Element => {
         const googleToken = user ? getTokens(user).id_token : undefined
         return (
-          <MaceProvider server="ws://localhost:8888" googleToken={googleToken} saveToLocalStorage>
-            <Container text style={{ paddingTop: 16 }}>
-              <MDXProvider components={components}>
-                <Content />
-              </MDXProvider>
-            </Container>
-          </MaceProvider>
+          <Container text style={{ paddingTop: 16 }}>
+            <MDXProvider components={components}>
+              <Start />
+              <MaceProvider server="ws://localhost:8888" googleToken={googleToken}>
+                <WithServer />
+              </MaceProvider>
+              <MaceProvider>
+                <NoServer />
+              </MaceProvider>
+            </MDXProvider>
+          </Container>
         )
       }}
     </WithGoogleLogin>
