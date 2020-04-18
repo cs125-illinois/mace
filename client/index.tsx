@@ -7,7 +7,7 @@ import ReconnectingWebSocket from "reconnecting-websocket"
 import { v4 as uuidv4 } from "uuid"
 import queryString from "query-string"
 
-import { Delta, SaveMessage, ConnectionQuery, ServerMessages, UpdateMessage, GetMessage } from "../types"
+import { Delta, SaveMessage, ConnectionQuery, UpdateMessage, GetMessage } from "../types"
 
 interface MaceContext {
   connected: boolean
@@ -26,6 +26,7 @@ const MaceContext = createContext<MaceContext>({
 
 interface MaceProviderProps {
   server: string
+  saveToLocalStorage?: boolean
   googleToken?: string
   children: ReactNode
 }
@@ -73,7 +74,12 @@ export class MaceProvider extends Component<MaceProviderProps, MaceProviderState
       this.setState({ connected: false })
     }
     this.connection.onmessage = ({ data }): void => {
-      ServerMessages.match((update) => this.update(update))(JSON.parse(data))
+      const message = JSON.parse(data)
+      if (UpdateMessage.guard(message)) {
+        this.update(message)
+      } else {
+        console.error(`bad message: ${data}`)
+      }
     }
   }
 
@@ -94,10 +100,9 @@ export class MaceProvider extends Component<MaceProviderProps, MaceProviderState
       console.debug(`no updater for ${editorId}`)
       return
     }
-    try {
-      this.editorUpdaters[editorId].forEach((updater) => updater(update))
-    } catch (err) {
-      console.error(err)
+    this.editorUpdaters[editorId].forEach((updater) => updater(update))
+    if (this.props.saveToLocalStorage) {
+      localStorage.setItem(editorId, JSON.stringify(update))
     }
   }
 
@@ -112,6 +117,12 @@ export class MaceProvider extends Component<MaceProviderProps, MaceProviderState
       this.editorUpdaters[editorId] = []
     }
     this.editorUpdaters[editorId].push(updater)
+    if (this.props.saveToLocalStorage) {
+      const update = localStorage.getItem(editorId)
+      if (UpdateMessage.guard(update)) {
+        updater(update)
+      }
+    }
   }
 
   save = (message: SaveMessage): void => {

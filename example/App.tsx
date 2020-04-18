@@ -142,7 +142,7 @@ const App: React.SFC = () => (
       {({ user }): JSX.Element => {
         const googleToken = user ? getTokens(user).id_token : undefined
         return (
-          <MaceProvider server="ws://localhost:8888" googleToken={googleToken}>
+          <MaceProvider server="ws://localhost:8888" googleToken={googleToken} saveToLocalStorage>
             <Container text style={{ paddingTop: 16 }}>
               <MDXProvider components={components}>
                 <Content />
