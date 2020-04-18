@@ -7,10 +7,13 @@
   "bugs": "https://github.com/cs125-illinois/mace/issues",
   "version": "2020.4.2",
   "main": "client/dist/index.cjs.js",
+  "files": [
+    "client/dist/**/*"
+  ],
   "scripts": {
     "backend": "docker-compose up > /dev/null",
     "build": "npm run build:client && npm run build:server",
-    "build:client": "rm -rf client/dist && GIT_COMMIT=$(git show --no-patch --format=%h) rollup -c && cp index.d.ts client/dist/",
+    "build:client": "rm -rf client/dist && GIT_COMMIT=$(git show --no-patch --format=%h) rollup -c && cp index.d.ts client/dist/ && rm -rf client/dist/example",
     "build:server": "rm -rf server/dist && GIT_COMMIT=$(git show --no-patch --format=%h) webpack",
     "check": "npm run eslint && npm run tsc && npm run prettier && npm run depcheck",
     "client": "GIT_COMMIT=$(git show --no-patch --format=%h) rollup -c -w",
