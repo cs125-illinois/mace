@@ -54,3 +54,14 @@ export const ConnectionQuery = Record({
 )
 
 export type ConnectionQuery = Static<typeof ConnectionQuery>
+
+export const ServerStatus = Record({
+  version: String,
+  commit: String,
+  counts: Record({
+    client: Number,
+    save: Number,
+    get: Number,
+  }),
+})
+export type ServerStatus = Static<typeof ServerStatus>

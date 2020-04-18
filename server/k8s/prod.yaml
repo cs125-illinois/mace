@@ -14,23 +14,23 @@ spec:
         app: mace
     spec:
       containers:
-      - name: mace
-        image: cs125/mace:2020.4.3
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 8888
-        env:
-        - name: TZ
-          value: "America/Chicago"
-        - name: ENVIRONMENT
-          value: "production"
-        - name: MONGODB
-          valueFrom:
-            secretKeyRef:
-              name: mongodb
-              key: MONGODB
-        - name: GOOGLE
-          value: 948918026196-p399ooibc7pr0ci7ida63jb5a6n4vsik.apps.googleusercontent.com
+        - name: mace
+          image: cs125/mace:2020.4.3
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8888
+          env:
+            - name: TZ
+              value: "America/Chicago"
+            - name: ENVIRONMENT
+              value: "production"
+            - name: MONGODB
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb
+                  key: MONGODB
+            - name: GOOGLE
+              value: 948918026196-p399ooibc7pr0ci7ida63jb5a6n4vsik.apps.googleusercontent.com
 ---
 apiVersion: v1
 kind: Service
@@ -40,9 +40,9 @@ metadata:
 spec:
   type: NodePort
   ports:
-  - name: http
-    port: 80
-    targetPort: 8888
+    - name: http
+      port: 80
+      targetPort: 8888
   selector:
     app: mace
 ---
@@ -58,10 +58,10 @@ metadata:
   name: mace-ingress
 spec:
   rules:
-  - host: cs125-cloud.cs.illinois.edu
-    http:
-      paths:
-      - path: /mace(/|$)(.*)
-        backend:
-          serviceName: mace-service
-          servicePort: 80
+    - host: cs125-cloud.cs.illinois.edu
+      http:
+        paths:
+          - path: /mace(/|$)(.*)
+            backend:
+              serviceName: mace-service
+              servicePort: 80

@@ -12,7 +12,7 @@ import mongodbUri from "mongodb-uri"
 import { OAuth2Client } from "google-auth-library"
 
 import WebSocket from "ws"
-import { SaveMessage, ConnectionQuery, UpdateMessage, GetMessage } from "../types"
+import { SaveMessage, ConnectionQuery, UpdateMessage, GetMessage, ServerStatus } from "../types"
 
 import { v4 as uuidv4 } from "uuid"
 import { Array, String } from "runtypes"
@@ -27,6 +27,15 @@ const { database } = mongodbUri.parse(process.env.MONGODB as string)
 const client = mongo.connect(process.env.MONGODB as string, { useNewUrlParser: true, useUnifiedTopology: true })
 const maceCollection = client.then((c) => c.db(database).collection(process.env.MONGODB_COLLECTION || "mace"))
 
+const serverStatus: ServerStatus = ServerStatus.check({
+  version: process.env.npm_package_version,
+  commit: process.env.GIT_COMMIT,
+  counts: {
+    client: 0,
+    save: 0,
+    get: 0,
+  },
+})
 const websocketsForClient: Record<string, WebSocket[]> = {}
 
 async function doUpdate(clientId: string, editorId: string, value: string, saveId: string = uuidv4()): Promise<void> {
@@ -94,11 +103,13 @@ function terminate(clientId: string, ws: WebSocket): void {
   if (websocketsForClient[clientId].length === 0) {
     delete websocketsForClient[clientId]
   }
+  serverStatus.counts.client = _.keys(websocketsForClient).length
 }
 
 router.get("/", async (ctx) => {
   if (!ctx.ws) {
-    return ctx.throw(404)
+    ctx.body = serverStatus
+    return
   }
   const connectionQuery = ConnectionQuery.check(ctx.request.query)
   const { browserId } = connectionQuery
@@ -128,11 +139,15 @@ router.get("/", async (ctx) => {
     websocketsForClient[clientId] = [ws]
   }
 
+  serverStatus.counts.client = _.keys(websocketsForClient).length
+
   ws.on("message", async (data) => {
     const message = JSON.parse(data.toString())
     if (SaveMessage.guard(message)) {
       await doSave(clientId, fullBrowserId, message)
+      serverStatus.counts.save++
     } else if (GetMessage.guard(message)) {
+      serverStatus.counts.get++
       await doGet(clientId, message)
     } else {
       console.error(`Bad message: ${JSON.stringify(message, null, 2)}`)
