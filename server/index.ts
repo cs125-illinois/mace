@@ -15,16 +15,19 @@ import WebSocket from "ws"
 import { SaveMessage, ConnectionQuery, UpdateMessage, GetMessage } from "../types"
 
 import { v4 as uuidv4 } from "uuid"
+import { Array, String } from "runtypes"
 
 const app = new Koa()
 const router = new Router<{}, { ws: () => Promise<WebSocket> }>()
-const googleClient = process.env.GOOGLE_CLIENT_ID && new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
+const clientIDs =
+  process.env.GOOGLE_CLIENT_IDS && Array(String).check(process.env.GOOGLE_CLIENT_IDS?.split(",").map((s) => s.trim()))
+const googleClient = clientIDs && clientIDs.length > 0 && new OAuth2Client(clientIDs[0])
 
 const { database } = mongodbUri.parse(process.env.MONGODB as string)
 const client = mongo.connect(process.env.MONGODB as string, { useNewUrlParser: true, useUnifiedTopology: true })
 const maceCollection = client.then((c) => c.db(database).collection(process.env.MONGODB_COLLECTION || "mace"))
 
-const websocketsForClient: Record<string, Array<WebSocket>> = {}
+const websocketsForClient: Record<string, WebSocket[]> = {}
 
 async function doUpdate(clientId: string, editorId: string, value: string, saveId: string = uuidv4()): Promise<void> {
   const update = UpdateMessage.check({
@@ -107,7 +110,7 @@ router.get("/", async (ctx) => {
       const email = (
         await googleClient.verifyIdToken({
           idToken,
-          audience: process.env.GOOGLE_CLIENT_ID as string,
+          audience: clientIDs || [],
         })
       ).getPayload()?.email
       if (email) {
