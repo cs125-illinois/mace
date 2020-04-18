@@ -7,10 +7,12 @@ import cors from "@koa/cors"
 import websocket from "koa-easy-ws"
 
 import { MongoClient as mongo } from "mongodb"
+import mongodbUri from "mongodb-uri"
+
 import { OAuth2Client } from "google-auth-library"
 
 import WebSocket from "ws"
-import { SaveMessage, ConnectionQuery, UpdateMessage, GetMessage } from "mace-types"
+import { SaveMessage, ConnectionQuery, UpdateMessage, GetMessage } from "../types"
 
 import { v4 as uuidv4 } from "uuid"
 
@@ -18,10 +20,9 @@ const app = new Koa()
 const router = new Router<{}, { ws: () => Promise<WebSocket> }>()
 const googleClient = process.env.GOOGLE_CLIENT_ID && new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
 
+const { database } = mongodbUri.parse(process.env.MONGODB as string)
 const client = mongo.connect(process.env.MONGODB as string, { useNewUrlParser: true, useUnifiedTopology: true })
-const maceCollection = client.then((c) =>
-  c.db(process.env.MONGODB_DATABASE).collection(process.env.MONGODB_COLLECTION || "mace")
-)
+const maceCollection = client.then((c) => c.db(database).collection(process.env.MONGODB_COLLECTION || "mace"))
 
 const websocketsForClient: Record<string, Array<WebSocket>> = {}
 

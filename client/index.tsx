@@ -7,7 +7,7 @@ import ReconnectingWebSocket from "reconnecting-websocket"
 import { v4 as uuidv4 } from "uuid"
 import queryString from "query-string"
 
-import { Delta, SaveMessage, ConnectionQuery, ServerMessages, UpdateMessage, GetMessage } from "mace-types"
+import { Delta, SaveMessage, ConnectionQuery, ServerMessages, UpdateMessage, GetMessage } from "../types"
 
 interface MaceContext {
   connected: boolean

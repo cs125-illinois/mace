@@ -9,7 +9,7 @@ import { Container, Button } from "semantic-ui-react"
 import { MDXProvider } from "@mdx-js/react"
 import Content from "./index.mdx"
 
-import { MaceEditor, MaceProvider, MaceProps } from "react-mace"
+import { MaceEditor, MaceProvider, MaceProps } from "../client"
 import Children from "react-children-utilities"
 import SyntaxHighlighter from "react-syntax-highlighter/dist/esm/default-highlight"
 
