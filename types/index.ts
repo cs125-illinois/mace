@@ -73,6 +73,7 @@ export const ClientId = Record({
 export type ClientId = Static<typeof ClientId>
 
 export const ServerStatus = Record({
+  started: String.withConstraint((s) => Date.parse(s) !== NaN),
   version: String,
   commit: String,
   counts: Record({
@@ -80,5 +81,6 @@ export const ServerStatus = Record({
     save: Number,
     get: Number,
   }),
+  googleClientIDs: Array(String),
 })
 export type ServerStatus = Static<typeof ServerStatus>

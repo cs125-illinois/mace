@@ -35,5 +35,5 @@ module.exports = {
     "mongodb-client-encryption": "__client_only___",
     "utf-8-validate": "__client_only__",
   },
-  plugins: [new webpack.EnvironmentPlugin(["GIT_COMMIT"])],
+  plugins: [new webpack.EnvironmentPlugin(["GIT_COMMIT", "npm_package_version"])],
 }

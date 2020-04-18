@@ -18,15 +18,16 @@ import { Array, String } from "runtypes"
 
 const app = new Koa()
 const router = new Router<{}, { ws: () => Promise<WebSocket> }>()
-const clientIDs =
+const googleClientIDs =
   process.env.GOOGLE_CLIENT_IDS && Array(String).check(process.env.GOOGLE_CLIENT_IDS?.split(",").map((s) => s.trim()))
-const googleClient = clientIDs && clientIDs.length > 0 && new OAuth2Client(clientIDs[0])
+const googleClient = googleClientIDs && googleClientIDs.length > 0 && new OAuth2Client(googleClientIDs[0])
 
 const { database } = mongodbUri.parse(process.env.MONGODB as string)
 const client = mongo.connect(process.env.MONGODB as string, { useNewUrlParser: true, useUnifiedTopology: true })
 const maceCollection = client.then((c) => c.db(database).collection(process.env.MONGODB_COLLECTION || "mace"))
 
 const serverStatus: ServerStatus = ServerStatus.check({
+  started: new Date().toISOString(),
   version: process.env.npm_package_version,
   commit: process.env.GIT_COMMIT,
   counts: {
@@ -34,6 +35,7 @@ const serverStatus: ServerStatus = ServerStatus.check({
     save: 0,
     get: 0,
   },
+  googleClientIDs,
 })
 const websocketsForClient: Record<string, WebSocket[]> = {}
 
@@ -111,7 +113,7 @@ router.get("/", async (ctx) => {
       email = (
         await googleClient.verifyIdToken({
           idToken,
-          audience: clientIDs || [],
+          audience: googleClientIDs || [],
         })
       ).getPayload()?.email
     } catch (err) {}
@@ -153,7 +155,7 @@ router.get("/", async (ctx) => {
 })
 
 maceCollection.then(async (c) => {
-  console.log(`Restart (${process.env.GIT_COMMIT})`)
+  console.log(JSON.stringify(serverStatus, null, 2))
 
   await c.createIndex({ clientId: 1, editorId: 1, timestamp: 1 })
 
