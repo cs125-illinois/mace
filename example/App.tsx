@@ -13,6 +13,7 @@ import WithServer from "./withserver.mdx"
 import NoServer from "./noserver.mdx"
 
 import { MaceEditor, MaceProvider, MaceProps } from "../client"
+
 import Children from "react-children-utilities"
 import SyntaxHighlighter from "react-syntax-highlighter/dist/esm/default-highlight"
 
@@ -22,9 +23,10 @@ const CDN = "https://cdn.jsdelivr.net/npm/ace-builds@1.4.11/src-min-noconflict"
 ace.config.set("basePath", CDN)
 
 class MacePlayground extends Component<MaceProps, { value: string; saved: boolean; saving: boolean }> {
-  private aceRef = createRef<MaceEditor>()
+  private maceRef = createRef<MaceEditor>()
   private originalValue: string
   private savedValue: string
+  private saveTimer: NodeJS.Timeout | undefined
 
   constructor(props: MaceProps) {
     super(props)
@@ -35,16 +37,25 @@ class MacePlayground extends Component<MaceProps, { value: string; saved: boolea
     this.state = { value: this.originalValue, saved: true, saving: false }
   }
 
+  componentWillUnmount(): void {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer)
+    }
+  }
+
   save = (): void => {
     if (this.state.saved) {
       return
     }
     this.setState({ saving: true })
-    this.aceRef?.current?.save()
+    this.maceRef?.current?.save()
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer)
+    }
   }
 
   reset = (): void => {
-    this.aceRef?.current?.setValue(this.originalValue)
+    this.maceRef?.current?.setValue(this.originalValue)
   }
 
   render(): ReactElement {
@@ -69,9 +80,9 @@ class MacePlayground extends Component<MaceProps, { value: string; saved: boolea
       <Container style={{ position: "relative" }}>
         <MaceEditor
           style={{ paddingBottom: "1rem" }}
-          ref={this.aceRef}
+          ref={this.maceRef}
           value={this.state.value}
-          onExternalUpdate={(value: string): void => {
+          onExternalUpdate={({ value }): void => {
             this.savedValue = value
             this.setState({ value, saved: value === this.savedValue })
           }}
@@ -81,6 +92,12 @@ class MacePlayground extends Component<MaceProps, { value: string; saved: boolea
           }}
           onChange={(value: string): void => {
             this.setState({ value, saved: value === this.savedValue })
+            if (this.saveTimer) {
+              clearTimeout(this.saveTimer)
+            }
+            this.saveTimer = setTimeout(() => {
+              this.save()
+            }, 1000)
           }}
           commands={commands}
           {...this.props}

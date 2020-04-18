@@ -19,12 +19,19 @@ export const Delta = Record({
 )
 export type Delta = Static<typeof Delta>
 
+export const Cursor = Record({
+  row: Number,
+  column: Number,
+})
+export type Cursor = Static<typeof Cursor>
+
 export const SaveMessage = Record({
   type: Literal("save"),
   editorId: String,
   saveId: String,
   value: String,
   deltas: Array(Delta),
+  cursor: Cursor,
 })
 export type SaveMessage = Static<typeof SaveMessage>
 
@@ -33,6 +40,7 @@ export const UpdateMessage = Record({
   editorId: String,
   saveId: String,
   value: String,
+  cursor: Cursor,
 })
 export type UpdateMessage = Static<typeof UpdateMessage>
 
@@ -52,8 +60,17 @@ export const ConnectionQuery = Record({
     googleToken: String,
   })
 )
-
 export type ConnectionQuery = Static<typeof ConnectionQuery>
+
+export const ClientId = Record({
+  browserId: String,
+  origin: String,
+}).And(
+  Partial({
+    email: String,
+  })
+)
+export type ClientId = Static<typeof ClientId>
 
 export const ServerStatus = Record({
   version: String,

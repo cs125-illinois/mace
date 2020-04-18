@@ -12,9 +12,8 @@ import mongodbUri from "mongodb-uri"
 import { OAuth2Client } from "google-auth-library"
 
 import WebSocket from "ws"
-import { SaveMessage, ConnectionQuery, UpdateMessage, GetMessage, ServerStatus } from "../types"
+import { SaveMessage, ConnectionQuery, UpdateMessage, GetMessage, ServerStatus, ClientId } from "../types"
 
-import { v4 as uuidv4 } from "uuid"
 import { Array, String } from "runtypes"
 
 const app = new Koa()
@@ -38,61 +37,52 @@ const serverStatus: ServerStatus = ServerStatus.check({
 })
 const websocketsForClient: Record<string, WebSocket[]> = {}
 
-async function doUpdate(clientId: string, editorId: string, value: string, saveId: string = uuidv4()): Promise<void> {
+function websocketIdFromClientId(clientId: ClientId): string {
+  return `${clientId.origin}/${clientId.email || clientId.browserId}`
+}
+
+async function doUpdate(clientId: ClientId, saveMessage: SaveMessage): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { type, deltas, ...savedContent } = saveMessage
+
   const update = UpdateMessage.check({
     type: "update",
-    editorId,
-    saveId,
-    value,
+    ...savedContent,
   })
+  const websocketId = websocketIdFromClientId(clientId)
   await Promise.all(
-    _.forEach(websocketsForClient[clientId], (ws) => {
+    _.forEach(websocketsForClient[websocketId], (ws) => {
       ws.send(JSON.stringify(update))
     })
   )
 }
 
-async function doSave(clientId: string, browserId: string, message: SaveMessage): Promise<void> {
-  const { editorId, saveId, value, deltas } = message
+async function doSave(clientId: ClientId, saveMessage: SaveMessage): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { type, ...savedContent } = saveMessage
+
   await (await maceCollection).insertOne({
-    saved: new Date(),
-    clientId,
-    editorId,
-    saveId,
-    value,
-    deltas,
+    timestamp: new Date(),
+    ...clientId,
+    saved: savedContent,
   })
-  if (browserId !== clientId) {
-    await (await maceCollection).insertOne({
-      saved: new Date(),
-      clientId: browserId,
-      editorId,
-      saveId,
-      value,
-      deltas,
-    })
-  }
-  await doUpdate(clientId, editorId, value, saveId)
+  await doUpdate(clientId, saveMessage)
 }
 
-async function doGet(clientId: string, message: GetMessage): Promise<void> {
-  const { editorId } = message
-  let value: string | undefined
+async function doGet(clientId: ClientId, getMessage: GetMessage): Promise<void> {
   try {
-    value = (
-      await (await maceCollection)
-        .find({
-          clientId,
-          editorId,
-        })
-        .sort({ saved: -1 })
-        .limit(1)
-        .toArray()
-    )[0].value
+    const { editorId } = getMessage
+    const { browserId, origin, email } = clientId
+    const query: { editorId: string; origin: string; email?: string; browserId?: string } = { editorId, origin }
+    if (email) {
+      query.email = email
+    } else {
+      query.browserId = browserId
+    }
+    const savedContent = (await (await maceCollection).find(query).sort({ timestamp: -1 }).limit(1).toArray())[0].saved
+    const saveMessage = SaveMessage.check({ type: "save", ...savedContent })
+    await doUpdate(clientId, saveMessage)
   } catch (err) {}
-  if (value) {
-    await doUpdate(clientId, editorId, value)
-  }
 }
 
 function terminate(clientId: string, ws: WebSocket): void {
@@ -113,30 +103,28 @@ router.get("/", async (ctx) => {
   }
   const connectionQuery = ConnectionQuery.check(ctx.request.query)
   const { browserId } = connectionQuery
-  const { googleToken: idToken } = connectionQuery
-  let clientId = browserId
 
+  const { googleToken: idToken } = connectionQuery
+  let email
   if (idToken && googleClient) {
     try {
-      const email = (
+      email = (
         await googleClient.verifyIdToken({
           idToken,
           audience: clientIDs || [],
         })
       ).getPayload()?.email
-      if (email) {
-        clientId = email
-      }
     } catch (err) {}
   }
-  clientId = `${ctx.headers.origin}/${clientId}`
-  const fullBrowserId = `${ctx.headers.origin}/${browserId}`
+
+  const clientId = ClientId.check({ browserId, origin: ctx.headers.origin, email })
+  const websocketId = websocketIdFromClientId(clientId)
 
   const ws = await ctx.ws()
-  if (websocketsForClient[clientId]) {
-    websocketsForClient[clientId].push(ws)
+  if (websocketsForClient[websocketId]) {
+    websocketsForClient[websocketId].push(ws)
   } else {
-    websocketsForClient[clientId] = [ws]
+    websocketsForClient[websocketId] = [ws]
   }
 
   serverStatus.counts.client = _.keys(websocketsForClient).length
@@ -144,7 +132,7 @@ router.get("/", async (ctx) => {
   ws.on("message", async (data) => {
     const message = JSON.parse(data.toString())
     if (SaveMessage.guard(message)) {
-      await doSave(clientId, fullBrowserId, message)
+      await doSave(clientId, message)
       serverStatus.counts.save++
     } else if (GetMessage.guard(message)) {
       serverStatus.counts.get++
@@ -154,20 +142,20 @@ router.get("/", async (ctx) => {
     }
   })
   ws.on("close", () => {
-    terminate(clientId, ws)
+    terminate(websocketId, ws)
   })
   ws.on("error", () => {
-    terminate(clientId, ws)
+    terminate(websocketId, ws)
   })
   ws.on("unexpected-response", () => {
-    terminate(clientId, ws)
+    terminate(websocketId, ws)
   })
 })
 
 maceCollection.then(async (c) => {
   console.log(`Restart (${process.env.GIT_COMMIT})`)
 
-  await c.createIndex({ clientId: 1, editorId: 1, saved: 1 })
+  await c.createIndex({ clientId: 1, editorId: 1, timestamp: 1 })
 
   const validDomains = process.env.VALID_DOMAINS && process.env.VALID_DOMAINS.split(",").map((s) => s.trim)
   const port = process.env.BACKEND_PORT ? parseInt(process.env.BACKEND_PORT) : 8888
