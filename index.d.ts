@@ -1,1 +1,1 @@
-export { MaceEditor } from "./client"
+export { MaceEditor, MaceProvider, MaceProps } from "./client"

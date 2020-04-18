@@ -2,7 +2,6 @@
   "compilerOptions": {
     "target": "es2019",
     "sourceMap": true,
-    "declaration": true,
     "strict": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,

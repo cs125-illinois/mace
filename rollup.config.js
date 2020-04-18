@@ -10,7 +10,9 @@ export default {
     sourcemap: true,
   },
   plugins: [
-    typescript(),
+    typescript({
+      tsconfigDefaults: { compilerOptions: { declaration: true } },
+    }),
     resolve({ preferBuiltins: true }),
     commonJS({
       include: "node_modules/**",
