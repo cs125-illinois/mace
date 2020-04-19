@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mace-deployment
-  namespace: mace
+  namespace: demo
 spec:
   replicas: 1
   selector:
@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: mace
-          image: cs125/mace:2020.4.3
+          image: cs125/mace:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8888
@@ -29,14 +29,18 @@ spec:
                 secretKeyRef:
                   name: mongodb
                   key: MONGODB
-            - name: GOOGLE
+            - name: GOOGLE_CLIENT_IDS
+              valueFrom:
+                secretKeyRef:
+                  name: google
+                  key: CLIENT_ID
               value: 948918026196-p399ooibc7pr0ci7ida63jb5a6n4vsik.apps.googleusercontent.com
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: mace-service
-  namespace: mace
+  namespace: demo
 spec:
   type: NodePort
   ports:
@@ -49,11 +53,11 @@ spec:
 apiVersion: networking.k8s.io/v1beta1
 kind: Ingress
 metadata:
-  namespace: mace
+  namespace: demo
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$2
     nginx.ingress.kubernetes.io/proxy-redirect-from: /
-    nginx.ingress.kubernetes.io/proxy-redirect-to: /mace/
+    nginx.ingress.kubernetes.io/proxy-redirect-to: /demo/mace/
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
   name: mace-ingress
 spec:
@@ -61,7 +65,7 @@ spec:
     - host: cs125-cloud.cs.illinois.edu
       http:
         paths:
-          - path: /mace(/|$)(.*)
+          - path: /demo/mace(/|$)(.*)
             backend:
               serviceName: mace-service
               servicePort: 80
