@@ -12,7 +12,7 @@
   ],
   "scripts": {
     "backend": "docker-compose up > /dev/null",
-    "build": "npm run build:client && npm run build:server && npm run build:docs",
+    "build": "npm run build:client && npm run docker:build && npm run build:docs",
     "build:client": "rm -rf client/dist && GIT_COMMIT=$(git show --no-patch --format=%h) rollup -c && cp index.d.ts client/dist/ && rm -rf client/dist/example",
     "build:docs": "rm -rf docs && parcel build example/index.html --out-dir docs --public-url=\"/mace\"",
     "build:server": "rm -rf server/dist && GIT_COMMIT=$(git show --no-patch --format=%h) webpack",
