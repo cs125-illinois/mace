@@ -33,7 +33,7 @@ interface MaceProviderState {
   connected: boolean
 }
 
-export type UpdateFunction = (update: UpdateMessage) => void
+type UpdateFunction = (update: UpdateMessage) => void
 
 export class MaceProvider extends Component<MaceProviderProps, MaceProviderState> {
   private connection: ReconnectingWebSocket | undefined
