@@ -93,7 +93,7 @@
     "react": "^16.13.1",
     "react-ace": "^8.1.0",
     "react-app-polyfill": "^1.0.6",
-    "react-children-utilities": "^2.0.13",
+    "react-children-utilities": "^2.1.0",
     "react-dom": "^16.13.1",
     "react-hot-loader": "^4.12.20",
     "react-syntax-highlighter": "^12.2.1",

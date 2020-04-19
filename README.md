@@ -17,4 +17,4 @@ For a complete example of how to use `@cs125/mace` please see the [example in th
 
 ## Demo
 
-Visit the demo [here](https://cs125-illinois.github.io/react-google-login/).
+Visit the demo [here](https://cs125-illinois.github.io/mace/).
