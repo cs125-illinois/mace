@@ -26,6 +26,8 @@ const { database } = mongodbUri.parse(process.env.MONGODB as string)
 const client = mongo.connect(process.env.MONGODB as string, { useNewUrlParser: true, useUnifiedTopology: true })
 const maceCollection = client.then((c) => c.db(database).collection(process.env.MONGODB_COLLECTION || "mace"))
 
+const maxEditorSize = process.env.MAX_EDITOR_SIZE ? parseInt(process.env.MAX_EDITOR_SIZE) : 32 * 1024
+
 const serverStatus: ServerStatus = ServerStatus.check({
   started: new Date().toISOString(),
   version: process.env.npm_package_version,
@@ -134,6 +136,9 @@ router.get("/", async (ctx) => {
   ws.on("message", async (data) => {
     const message = JSON.parse(data.toString())
     if (SaveMessage.guard(message)) {
+      if (message.value.length > maxEditorSize) {
+        return ctx.throw(400, "Content too large")
+      }
       await doSave(clientId, message)
       serverStatus.counts.save++
     } else if (GetMessage.guard(message)) {
