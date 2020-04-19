@@ -33,8 +33,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: google
-                  key: CLIENT_ID
-              value: 948918026196-p399ooibc7pr0ci7ida63jb5a6n4vsik.apps.googleusercontent.com
+                  key: GOOGLE_CLIENT_ID
 ---
 apiVersion: v1
 kind: Service
