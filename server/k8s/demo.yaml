@@ -24,6 +24,8 @@ spec:
               value: "America/Chicago"
             - name: ENVIRONMENT
               value: "production"
+            - name: VALID_DOMAINS
+              value: "https://cs125-illinois.github.io"
             - name: MONGODB
               valueFrom:
                 secretKeyRef:
