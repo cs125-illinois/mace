@@ -2,7 +2,7 @@ import React, { Component, createRef, ReactElement, ReactNode } from "react"
 import { hot } from "react-hot-loader"
 import PropTypes from "prop-types"
 
-import { GoogleLoginProvider, WithGoogleLogin, getTokens } from "@cs125/react-google-login"
+import { GoogleLoginProvider, WithGoogleTokens } from "@cs125/react-google-login"
 
 import { Container, Button } from "semantic-ui-react"
 
@@ -161,14 +161,13 @@ const App: React.SFC = () => (
     // eslint-disable-next-line @typescript-eslint/camelcase
     clientConfig={{ client_id: "948918026196-eh2lctl77k8pik8ugvlq1hf69vqoafd4.apps.googleusercontent.com" }}
   >
-    <WithGoogleLogin>
-      {({ user }): JSX.Element => {
-        const googleToken = user ? getTokens(user).id_token : undefined
+    <WithGoogleTokens>
+      {({ idToken }): JSX.Element => {
         return (
           <Container text style={{ paddingTop: 16 }}>
             <MDXProvider components={components}>
               <Start />
-              <MaceProvider server="ws://localhost:8888" googleToken={googleToken}>
+              <MaceProvider server="ws://localhost:8888" googleToken={idToken}>
                 <WithServer />
               </MaceProvider>
               <MaceProvider>
@@ -178,7 +177,7 @@ const App: React.SFC = () => (
           </Container>
         )
       }}
-    </WithGoogleLogin>
+    </WithGoogleTokens>
   </GoogleLoginProvider>
 )
 export default hot(module)(App)

@@ -1,10 +1,7 @@
 module.exports = {
   ignorePatterns: ["dist"],
   parser: "babel-eslint",
-  extends: [
-    "plugin:react/recommended",
-    "plugin:prettier/recommended",
-  ],
+  extends: ["plugin:react/recommended", "plugin:prettier/recommended"],
   parserOptions: {
     ecmaVersion: 2018,
     sourceType: "module",
@@ -24,6 +21,6 @@ module.exports = {
         "prettier/@typescript-eslint",
         "plugin:prettier/recommended",
       ],
-    }
-  ]
+    },
+  ],
 }
