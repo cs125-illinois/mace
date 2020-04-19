@@ -70,6 +70,12 @@ class MacePlayground extends Component<MaceProps, { value: string; saved: boolea
         bindKey: { win: "Ctrl-s", mac: "Ctrl-s" },
         exec: this.save,
       },
+      {
+        name: "gotoline",
+        exec: (): boolean => {
+          return false
+        },
+      },
     ])
     return (
       <Container style={{ position: "relative" }}>
