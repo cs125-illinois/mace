@@ -47,7 +47,7 @@ export class MaceProvider extends Component<MaceProviderProps, MaceProviderState
     this.browserId = localStorage.getItem("mace") || uuidv4()
     localStorage.setItem("mace", this.browserId)
 
-    this.state = { connected: false }
+    this.state = { connected: this.props.server === undefined }
   }
 
   connect = (): void => {
@@ -221,6 +221,7 @@ export class MaceEditor extends Component<MaceProps> {
   }
 
   save = (): void => {
+    const cursor = MaceCursor.check(this.cursor || this.aceRef.current?.editor.selection.getCursor())
     this.lastSaveID = uuidv4()
     const message = {
       type: "save",
@@ -228,7 +229,7 @@ export class MaceEditor extends Component<MaceProps> {
       saveId: this.lastSaveID,
       value: this.value,
       deltas: [...this.deltas],
-      cursor: this.cursor,
+      cursor,
     } as SaveMessage
     this.deltas = []
     this.context.save(message)
