@@ -1,4 +1,4 @@
-import React, { Component, ReactElement, createContext, ReactNode, createRef } from "react"
+import React, { Component, ReactElement, createContext, ReactNode, createRef, useContext } from "react"
 import PropTypes from "prop-types"
 
 import AceEditor, { IAceOptions } from "react-ace"
@@ -9,12 +9,12 @@ import queryString from "query-string"
 
 import { Delta, SaveMessage, ConnectionQuery, UpdateMessage, GetMessage, Cursor as MaceCursor, Cursor } from "../types"
 
-interface MaceContext {
+export interface MaceContext {
   connected: boolean
   register: (editorId: string, updater: UpdateFunction) => void
   save: (message: SaveMessage) => void
 }
-const MaceContext = createContext<MaceContext>({
+export const MaceContext = createContext<MaceContext>({
   connected: false,
   register: (): string => {
     throw new Error("Mace provider not set")
@@ -257,4 +257,18 @@ export class MaceEditor extends Component<MaceProps> {
       />
     )
   }
+}
+
+export const withMaceConnected = (): boolean => {
+  const { connected } = useContext(MaceContext)
+  return connected
+}
+interface WithMaceConnectedProps {
+  children: (connected: boolean) => JSX.Element | null
+}
+export const WithMaceConnected: React.FC<WithMaceConnectedProps> = ({ children }) => {
+  return children(withMaceConnected())
+}
+WithMaceConnected.propTypes = {
+  children: PropTypes.func.isRequired,
 }
