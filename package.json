@@ -17,7 +17,7 @@
     "build:server": "rm -rf server/dist && GIT_COMMIT=$(git show --no-patch --format=%h) webpack",
     "check": "npm run eslint && npm run tsc && npm run prettier && npm run depcheck",
     "client": "GIT_COMMIT=$(git show --no-patch --format=%h) rollup -c -w",
-    "depcheck": "depcheck --ignore-dirs dist --ignores=@types/*,@hot-loader/react-dom,env-cmd,parcel,ts-node,concurrently,tsconfig-paths,webpack-cli,@mdx-js/parcel-plugin-mdx,@typescript-eslint/*,mace-types,react-mace",
+    "depcheck": "depcheck --ignore-dirs dist --ignores=@types/*,@hot-loader/react-dom,env-cmd,parcel,ts-node,concurrently,tsconfig-paths,webpack-cli,@mdx-js/parcel-plugin-mdx,@typescript-eslint/*,@cs125/mace",
     "docker:build": "npm run build:server && docker build . -t cs125/mace",
     "docker:push": "docker push cs125/mace:latest && docker push cs125/mace:$npm_package_version",
     "docker:tag": "docker tag cs125/mace:latest cs125/mace:$npm_package_version",
@@ -28,7 +28,7 @@
     "start": "concurrently -n server,client,example,backend --handle-input \"npm run server\" \"npm run client\" \"parcel example/index.html\" \"npm run backend\"",
     "poststart": "docker-compose down",
     "tsc": "tsc --noEmit",
-    "prettier": "prettier --write client/ example/ server/ types/ .vscode/ *.json *.js *.ts .*.js && prettier-package-json --write"
+    "prettier": "prettier --write client/ example/ server/ types/ .vscode/ *.json *.js *.ts *.md .*.js && prettier-package-json --write"
   },
   "types": "client/dist/index.d.ts",
   "dependencies": {
@@ -110,8 +110,8 @@
     "webpack-cli": "^3.3.11"
   },
   "alias": {
-    "react-dom": "@hot-loader/react-dom",
-    "react-mace": "./client/dist/index.cjs.js"
+    "@cs125/mace": ".",
+    "react-dom": "@hot-loader/react-dom"
   },
   "nodemonConfig": {
     "watch": [

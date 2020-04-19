@@ -168,7 +168,6 @@ export class MaceEditor extends Component<MaceProps> {
   private value: string
   private deltas: Array<Delta> = []
   private cursor: MaceCursor | undefined
-  private initialCursor: MaceCursor | undefined
 
   constructor(props: MaceProps, context: MaceContext) {
     super(props, context)
@@ -187,10 +186,12 @@ export class MaceEditor extends Component<MaceProps> {
     if (
       Cursor.guard(ourCursor) &&
       Cursor.guard(theirCursor) &&
-      ourCursor.row !== theirCursor.row &&
-      ourCursor.column !== theirCursor.column &&
-      this.aceRef.current?.editor?.getValue() === this.props.value
+      ourCursor.row === theirCursor.row &&
+      ourCursor.column === theirCursor.column
     ) {
+      return true
+    }
+    if (this.aceRef.current?.editor?.getValue() === this.props.value) {
       this.aceRef.current?.editor.moveCursorTo(theirCursor.row, theirCursor.column)
       return true
     } else {
@@ -205,10 +206,10 @@ export class MaceEditor extends Component<MaceProps> {
     } else if (update.saveId === this.lastSaveID && this.props.onSave) {
       this.props.onSave(update.value)
     }
+    if (this.cursorTimer) {
+      clearTimeout(this.cursorTimer)
+    }
     if (!this.syncCursor(update.cursor)) {
-      if (this.cursorTimer) {
-        clearTimeout(this.cursorTimer)
-      }
       this.cursorTimer = setTimeout(() => {
         this.syncCursor(update.cursor)
       }, 10)

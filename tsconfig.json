@@ -1,14 +1,22 @@
 {
   "compilerOptions": {
+    "noEmit": true,
     "target": "es2019",
     "moduleResolution": "node",
     "esModuleInterop": true,
     "jsx": "react",
     "allowSyntheticDefaultImports": true,
     "sourceMap": true,
+    "skipLibCheck": true,
     "strict": true,
+    "noImplicitAny": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
     "typeRoots": ["node_modules/@types", "./types"],
-    "baseUrl": "."
-  },
-  "exclude": ["node_modules", "client/dist", "server/dist"]
+    "baseUrl": ".",
+    "paths": {
+      "@cs125/mace": ["./client/"]
+    }
+  }
 }

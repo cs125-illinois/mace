@@ -11,7 +11,10 @@ export default {
   },
   plugins: [
     typescript({
-      tsconfigDefaults: { compilerOptions: { declaration: true } },
+      tsconfigDefaults: {
+        include: ["./client/**/*"],
+        compilerOptions: { declaration: true },
+      },
     }),
     resolve({ preferBuiltins: true }),
     commonJS({
