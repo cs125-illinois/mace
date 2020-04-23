@@ -3,6 +3,7 @@ import PropTypes from "prop-types"
 
 import AceEditor, { IAceOptions } from "react-ace"
 import ReconnectingWebSocket from "reconnecting-websocket"
+import { PingWS, filterPingPongMessages } from "@cs125/pingpongws"
 
 import { v4 as uuidv4 } from "uuid"
 import queryString from "query-string"
@@ -37,6 +38,7 @@ type UpdateFunction = (update: UpdateMessage) => void
 
 export class MaceProvider extends Component<MaceProviderProps, MaceProviderState> {
   private connection: ReconnectingWebSocket | undefined
+
   private editorUpdaters: Record<string, Array<UpdateFunction>> = {}
 
   private browserId: string
@@ -62,25 +64,28 @@ export class MaceProvider extends Component<MaceProviderProps, MaceProviderState
       googleToken: this.props.googleToken,
     })
 
-    this.connection = new ReconnectingWebSocket(`${this.props.server}?${queryString.stringify(connectionQuery)}`)
-    this.connection.onopen = (): void => {
+    this.connection = PingWS(
+      new ReconnectingWebSocket(`${this.props.server}?${queryString.stringify(connectionQuery)}`)
+    )
+    this.connection.addEventListener("open", () => {
       this.setState({ connected: true })
       Object.keys(this.editorUpdaters).forEach((editorId) => {
         const message = GetMessage.check({ type: "get", editorId })
         this.connection?.send(JSON.stringify(message))
       })
-    }
-    this.connection.onclose = (): void => {
+    })
+    this.connection.addEventListener("close", () => {
       this.setState({ connected: false })
-    }
-    this.connection.onmessage = ({ data }): void => {
-      const message = JSON.parse(data)
-      if (UpdateMessage.guard(message)) {
-        this.update(message)
-      } else {
-        console.error(`bad message: ${data}`)
-      }
-    }
+    })
+    this.connection.addEventListener(
+      "message",
+      filterPingPongMessages(({ data }) => {
+        const message = JSON.parse(data)
+        if (UpdateMessage.guard(message)) {
+          this.update(message)
+        }
+      })
+    )
   }
 
   componentDidMount(): void {

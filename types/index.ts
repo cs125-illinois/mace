@@ -35,6 +35,12 @@ export const SaveMessage = Record({
 })
 export type SaveMessage = Static<typeof SaveMessage>
 
+export const GetMessage = Record({
+  type: Literal("get"),
+  editorId: String,
+})
+export type GetMessage = Static<typeof GetMessage>
+
 export const UpdateMessage = Record({
   type: Literal("update"),
   editorId: String,
@@ -43,12 +49,6 @@ export const UpdateMessage = Record({
   cursor: Cursor,
 })
 export type UpdateMessage = Static<typeof UpdateMessage>
-
-export const GetMessage = Record({
-  type: Literal("get"),
-  editorId: String,
-})
-export type GetMessage = Static<typeof GetMessage>
 
 export const ClientMessages = Union(SaveMessage, GetMessage)
 export const ServerMessages = Union(UpdateMessage)

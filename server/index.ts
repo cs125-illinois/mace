@@ -12,6 +12,8 @@ import mongodbUri from "mongodb-uri"
 import { OAuth2Client } from "google-auth-library"
 
 import WebSocket from "ws"
+import { PongWS, filterPingPongMessages } from "@cs125/pingpongws"
+
 import { SaveMessage, ConnectionQuery, UpdateMessage, GetMessage, ServerStatus, ClientId } from "../types"
 
 import { Array, String } from "runtypes"
@@ -124,7 +126,7 @@ router.get("/", async (ctx) => {
   const clientId = ClientId.check({ browserId, origin: ctx.headers.origin, email })
   const websocketId = websocketIdFromClientId(clientId)
 
-  const ws = await ctx.ws()
+  const ws = PongWS(await ctx.ws())
   if (websocketsForClient[websocketId]) {
     websocketsForClient[websocketId].push(ws)
   } else {
@@ -133,21 +135,24 @@ router.get("/", async (ctx) => {
 
   serverStatus.counts.client = _.keys(websocketsForClient).length
 
-  ws.on("message", async (data) => {
-    const message = JSON.parse(data.toString())
-    if (SaveMessage.guard(message)) {
-      if (message.value.length > maxEditorSize) {
-        return ctx.throw(400, "Content too large")
+  ws.on(
+    "message",
+    filterPingPongMessages(async (data) => {
+      const message = JSON.parse(data.toString())
+      if (SaveMessage.guard(message)) {
+        if (message.value.length > maxEditorSize) {
+          return ctx.throw(400, "Content too large")
+        }
+        await doSave(clientId, message)
+        serverStatus.counts.save++
+      } else if (GetMessage.guard(message)) {
+        serverStatus.counts.get++
+        await doGet(clientId, message)
+      } else {
+        console.error(`Bad message: ${JSON.stringify(message, null, 2)}`)
       }
-      await doSave(clientId, message)
-      serverStatus.counts.save++
-    } else if (GetMessage.guard(message)) {
-      serverStatus.counts.get++
-      await doGet(clientId, message)
-    } else {
-      console.error(`Bad message: ${JSON.stringify(message, null, 2)}`)
-    }
-  })
+    })
+  )
   ws.on("close", () => {
     terminate(websocketId, ws)
   })
