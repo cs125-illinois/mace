@@ -3,6 +3,7 @@
   "description": "Client and server support for saving and synchonizing Ace editor contents.",
   "license": "MIT",
   "author": "Geoffrey Challen <geoffrey.challen@gmail.com>",
+  "homepage": "https://github.com/cs125-illinois/mace",
   "repository": "https://github.com/cs125-illinois/mace",
   "bugs": "https://github.com/cs125-illinois/mace/issues",
   "version": "2020.5.0",
@@ -18,10 +19,12 @@
     "build:server": "rm -rf server/dist && GIT_COMMIT=$(git show --no-patch --format=%h) webpack",
     "check": "npm run eslint && npm run tsc && npm run prettier && npm run depcheck",
     "client": "GIT_COMMIT=$(git show --no-patch --format=%h) rollup -c -w",
-    "depcheck": "depcheck --ignore-dirs dist,docs --ignores=@types/*,@hot-loader/react-dom,env-cmd,parcel,ts-node,concurrently,tsconfig-paths,webpack-cli,@mdx-js/parcel-plugin-mdx,@typescript-eslint/*,@cs125/mace",
-    "docker:build": "npm run build:server && docker build . -t cs125/mace",
-    "docker:push": "docker push cs125/mace:latest && docker push cs125/mace:$npm_package_version",
-    "docker:tag": "docker tag cs125/mace:latest cs125/mace:$npm_package_version",
+    "depcheck": "depcheck --ignore-dirs dist,docs --ignores=@types/*,@hot-loader/react-dom,env-cmd,parcel,ts-node,concurrently,tsconfig-paths,webpack-cli,@mdx-js/parcel-plugin-mdx,@typescript-eslint/*,$npm_package_name",
+    "predocker:build": "npm run build:server",
+    "docker:build": "docker build --build-arg npm_package_image --build-arg npm_package_description --build-arg npm_package_homepage --build-arg npm_package_repository_url --build-arg npm_package_version --build-arg GIT_COMMIT=$(git show --no-patch --format=%h) --build-arg BUILD_DATE=`date -u +\"%Y-%m-%dT%H:%M:%SZ\"` . -t $npm_package_image",
+    "docker:push": "docker push $npm_package_image:latest && docker push $npm_package_image:$npm_package_version",
+    "docker:tag": "docker tag $npm_package_image:latest $npm_package_image:$npm_package_version",
+    "echo": "printenv",
     "eslint": "eslint --fix server/ example/ client/ types/ --max-warnings=0 --ext .js,.ts,.tsx",
     "ncu": "ncu",
     "prepublishOnly": "npm run check && npm run build:client",
@@ -33,8 +36,8 @@
   },
   "types": "client/dist/index.d.ts",
   "dependencies": {
-    "@cs125/pingpongws": "^2020.4.4",
-    "@cs125/react-google-login": "^2020.4.6",
+    "@cs125/pingpongws": "^2020.5.0",
+    "@cs125/react-google-login": "^2020.5.0",
     "@koa/cors": "^3.0.0",
     "@types/uuid": "^7.0.3",
     "google-auth-library": "^6.0.0",
@@ -122,6 +125,7 @@
       "pre-commit": "lint-staged"
     }
   },
+  "image": "cs125/mace",
   "lint-staged": {
     "*.{json,js,ts,md}": [
       "prettier --write"
