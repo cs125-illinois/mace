@@ -135,9 +135,9 @@ router.get("/", async (ctx) => {
 
   serverStatus.counts.client = _.keys(websocketsForClient).length
 
-  ws.on(
+  ws.addEventListener(
     "message",
-    filterPingPongMessages(async (data) => {
+    filterPingPongMessages(async ({ data }) => {
       const message = JSON.parse(data.toString())
       if (SaveMessage.guard(message)) {
         if (message.value.length > maxEditorSize) {
@@ -153,13 +153,7 @@ router.get("/", async (ctx) => {
       }
     })
   )
-  ws.on("close", () => {
-    terminate(websocketId, ws)
-  })
-  ws.on("error", () => {
-    terminate(websocketId, ws)
-  })
-  ws.on("unexpected-response", () => {
+  ws.addEventListener("close", () => {
     terminate(websocketId, ws)
   })
 })
