@@ -22,6 +22,7 @@
     "depcheck": "depcheck --ignore-dirs dist,docs --ignores=@types/*,@hot-loader/react-dom,env-cmd,parcel,ts-node,concurrently,tsconfig-paths,webpack-cli,@mdx-js/parcel-plugin-mdx,@typescript-eslint/*,$npm_package_name",
     "predocker:build": "npm run build:server",
     "docker:build": "docker build --build-arg npm_package_image --build-arg npm_package_description --build-arg npm_package_homepage --build-arg npm_package_repository_url --build-arg npm_package_version --build-arg GIT_COMMIT=$(git show --no-patch --format=%h) --build-arg BUILD_DATE=`date -u +\"%Y-%m-%dT%H:%M:%SZ\"` . -t $npm_package_image",
+    "postdocker:build": "npm run docker:tag",
     "docker:push": "docker push $npm_package_image:latest && docker push $npm_package_image:$npm_package_version",
     "docker:tag": "docker tag $npm_package_image:latest $npm_package_image:$npm_package_version",
     "echo": "printenv",
