@@ -208,16 +208,16 @@ export class MaceEditor extends Component<MaceProps> {
   update: UpdateFunction = (update: UpdateMessage) => {
     if (update.saveId !== this.lastSaveID && this.props.onExternalUpdate) {
       this.props.onExternalUpdate(update)
+      if (this.cursorTimer) {
+        clearTimeout(this.cursorTimer)
+      }
+      if (!this.syncCursor(update.cursor)) {
+        this.cursorTimer = setTimeout(() => {
+          this.syncCursor(update.cursor)
+        }, 10)
+      }
     } else if (update.saveId === this.lastSaveID && this.props.onSave) {
       this.props.onSave(update.value)
-    }
-    if (this.cursorTimer) {
-      clearTimeout(this.cursorTimer)
-    }
-    if (!this.syncCursor(update.cursor)) {
-      this.cursorTimer = setTimeout(() => {
-        this.syncCursor(update.cursor)
-      }, 10)
     }
   }
 
