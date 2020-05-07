@@ -6,7 +6,13 @@ import { Container, Button } from "semantic-ui-react"
 import { MaceEditor, MaceProps, MaceContext } from "@cs125/mace"
 
 import Children from "react-children-utilities"
-import SyntaxHighlighter from "react-syntax-highlighter/dist/esm/default-highlight"
+
+import PrismLight from "react-syntax-highlighter/dist/esm/prism-light"
+import style from "react-syntax-highlighter/dist/esm/styles/prism/tomorrow"
+import bash from "react-syntax-highlighter/dist/esm/languages/prism/bash"
+PrismLight.registerLanguage("bash", bash)
+import jsx from "react-syntax-highlighter/dist/esm/languages/prism/jsx"
+PrismLight.registerLanguage("jsx", jsx)
 
 import "ace-builds/src-noconflict/theme-chrome"
 import ace from "ace-builds/src-noconflict/ace"
@@ -121,6 +127,18 @@ class MacePlayground extends Component<MaceProps, { value: string; saved: boolea
   }
 }
 
+const SyntaxHighlighter: React.FC<{ language: string; children: string }> = ({ language, children }) => {
+  return (
+    <PrismLight style={style} language={language} customStyle={{ fontSize: "0.9rem" }}>
+      {children}
+    </PrismLight>
+  )
+}
+SyntaxHighlighter.propTypes = {
+  language: PropTypes.string.isRequired,
+  children: PropTypes.string.isRequired,
+}
+
 interface CodeBlockProps {
   className?: string
   play?: boolean
@@ -138,7 +156,7 @@ const CodeBlock: React.FC<CodeBlockProps> = (props) => {
       <MacePlayground
         id={id as string}
         theme="chrome"
-        mode={className?.replace(/language-/, "") || ""}
+        mode={language}
         highlightActiveLine={false}
         showPrintMargin={false}
         width="100%"
@@ -151,7 +169,7 @@ const CodeBlock: React.FC<CodeBlockProps> = (props) => {
       </MacePlayground>
     )
   } else {
-    return <SyntaxHighlighter language={language}>{children}</SyntaxHighlighter>
+    return <SyntaxHighlighter language={language}>{contents}</SyntaxHighlighter>
   }
 }
 CodeBlock.propTypes = {

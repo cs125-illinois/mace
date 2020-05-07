@@ -10,6 +10,7 @@ import { MDXProvider } from "@mdx-js/react"
 import Start from "./start.mdx"
 import WithServer from "./withserver.mdx"
 import NoServer from "./noserver.mdx"
+import Use from "./use.mdx"
 
 import { MaceProvider } from "@cs125/mace"
 
@@ -32,6 +33,7 @@ const App: React.SFC = () => (
               <MaceProvider>
                 <NoServer />
               </MaceProvider>
+              <Use />
             </MDXProvider>
           </Container>
         )
