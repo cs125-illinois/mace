@@ -17,10 +17,7 @@ import { MaceProvider } from "@cs125/mace"
 import components from "./components"
 
 const App: React.SFC = () => (
-  <GoogleLoginProvider
-    // eslint-disable-next-line @typescript-eslint/camelcase
-    clientConfig={{ client_id: process.env.GOOGLE_CLIENT_IDS as string }}
-  >
+  <GoogleLoginProvider clientConfig={{ client_id: process.env.GOOGLE_CLIENT_IDS as string }}>
     <WithGoogleTokens>
       {({ idToken }): JSX.Element => {
         return (

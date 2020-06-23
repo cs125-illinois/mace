@@ -1,6 +1,6 @@
 import React, { useState } from "react"
 
-import { withGoogleLogin, GoogleAuth } from "@cs125/react-google-login"
+import { GoogleAuth, useGoogleLogin } from "@cs125/react-google-login"
 
 import { Button, Icon } from "semantic-ui-react"
 
@@ -22,7 +22,7 @@ const loginOrOut = (
 const LoginButton: React.FC = () => {
   const [busy, setBusy] = useState<boolean>(false)
 
-  const { ready, auth, isSignedIn } = withGoogleLogin()
+  const { ready, auth, isSignedIn } = useGoogleLogin()
 
   return (
     <Button

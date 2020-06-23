@@ -7,6 +7,7 @@ import "react-app-polyfill/ie11"
 import "babel-polyfill"
 
 const render = (): void => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const App = require("./App").default
   ReactDOM.render(<App />, document.getElementById("root"))
 }
