@@ -53,7 +53,7 @@
     "query-string": "^6.13.1",
     "reconnecting-websocket": "^4.4.0",
     "runtypes": "^4.3.0",
-    "uuid": "^8.1.0",
+    "uuid": "^8.2.0",
     "ws": "^7.3.0"
   },
   "peerDependencies": {

@@ -10,7 +10,6 @@ import { v4 as uuidv4 } from "uuid"
 import queryString from "query-string"
 
 import { Delta, SaveMessage, ConnectionQuery, UpdateMessage, GetMessage, Cursor as MaceCursor, Cursor } from "../types"
-import ReactAce from "react-ace/lib/ace"
 
 export interface MaceContext {
   connected: boolean
@@ -160,50 +159,49 @@ export interface MaceArguments {
   editor: IAceEditor
   id: string
   context: MaceContext
-  reactAce?: ReactAce
   saveCompleted?: (update: UpdateMessage) => void
+  onUpdate?: (value: string, delta: { [key: string]: unknown }) => void
+  onSelectionChange?: (value: string, event: unknown) => void
   onExternalUpdate?: (update: UpdateMessage) => void
 }
-export const mace: (args: MaceArguments) => () => void = ({ editor, id, context, reactAce, ...callbacks }) => {
+
+export const cursorsAreEqual: (first: Cursor, second: Cursor) => boolean = (first: Cursor, second: Cursor) => {
+  return first.row === second.row && first.column === second.column
+}
+
+export const mace: (args: MaceArguments) => () => void = ({ editor, id, context, ...callbacks }) => {
   let lastSaveID: string | undefined
 
-  let lastValue: string | undefined
   let deltas: Array<Delta> = []
+  let quiet = false
   const changeListener = (delta: { [key: string]: unknown }) => {
-    if (editor.getValue() === lastValue) {
-      return
-    }
-    lastValue = editor.getValue()
     deltas.push(Delta.check({ ...delta, timestamp: new Date().toISOString() }))
+    !quiet && callbacks.onUpdate && callbacks.onUpdate(editor.getValue(), delta)
   }
   editor.session.addEventListener("change", changeListener)
+  const selectionChangeListener = (event: unknown) => {
+    !quiet && callbacks.onSelectionChange && callbacks.onSelectionChange(editor.getValue(), event)
+  }
+  editor.addEventListener("changeSelection", selectionChangeListener)
 
-  let lastSavedValue: string | undefined
   context.register(id, (update: UpdateMessage) => {
     if (update.saveId === lastSaveID) {
       callbacks.saveCompleted && callbacks.saveCompleted(update)
-      lastSavedValue = update.value
     } else {
-      if (reactAce) {
-        console.log("Here")
-        reactAce.silent = true
-      }
+      quiet = true
       const previousPosition = editor.session.selection.toJSON()
       editor.setValue(update.value)
       editor.session.selection.fromJSON(previousPosition)
-      if (reactAce) {
-        reactAce.silent = false
+      const ourCursor = editor.selection.getCursor()
+      if (Cursor.guard(ourCursor) && Cursor.guard(update.cursor) && !cursorsAreEqual(ourCursor, update.cursor)) {
+        editor.moveCursorTo(update.cursor.row, update.cursor.column)
       }
-      //editor.moveCursorTo(update.cursor.row, update.cursor.column)
+      quiet = false
       callbacks.onExternalUpdate && callbacks.onExternalUpdate(update)
     }
   })
 
-  const save = () => {
-    const currentValue = editor.getValue()
-    if (currentValue === lastSavedValue && deltas.length === 0) {
-      return
-    }
+  return () => {
     lastSaveID = uuidv4()
     const message = {
       type: "save",
@@ -211,13 +209,11 @@ export const mace: (args: MaceArguments) => () => void = ({ editor, id, context,
       saveId: lastSaveID,
       value: editor.getValue(),
       deltas,
-      cursor: MaceCursor.check(editor.selection.getCursor()),
+      cursor: Cursor.check(editor.selection.getCursor()),
     } as SaveMessage
     deltas = []
     context.save(message)
   }
-
-  return save
 }
 
 export interface MaceProps extends IAceOptions {
