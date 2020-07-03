@@ -14,7 +14,7 @@ import { Delta, SaveMessage, ConnectionQuery, UpdateMessage, GetMessage, Cursor 
 export interface MaceContext {
   connected: boolean
   register: (editorId: string, updater: UpdateFunction) => void
-  save: (message: SaveMessage) => void
+  save: (message: SaveMessage, useServer?: boolean) => void
 }
 export const MaceContext = createContext<MaceContext>({
   connected: false,
@@ -129,8 +129,8 @@ export class MaceProvider extends Component<MaceProviderProps, MaceProviderState
     } catch (err) {}
   }
 
-  save = (message: SaveMessage): void => {
-    if (!this.props.server) {
+  save = (message: SaveMessage, useServer = true): void => {
+    if (!this.props.server || !useServer) {
       const update = UpdateMessage.check({
         type: "update",
         editorId: message.editorId,
@@ -169,7 +169,7 @@ export const cursorsAreEqual: (first: Cursor, second: Cursor) => boolean = (firs
   return first.row === second.row && first.column === second.column
 }
 
-export const mace: (args: MaceArguments) => () => void = ({ editor, id, context, ...callbacks }) => {
+export const mace: (args: MaceArguments) => (useServer?: boolean) => void = ({ editor, id, context, ...callbacks }) => {
   let lastSaveID: string | undefined
 
   let deltas: Array<Delta> = []
@@ -194,14 +194,16 @@ export const mace: (args: MaceArguments) => () => void = ({ editor, id, context,
       editor.session.selection.fromJSON(previousPosition)
       const ourCursor = editor.selection.getCursor()
       if (Cursor.guard(ourCursor) && Cursor.guard(update.cursor) && !cursorsAreEqual(ourCursor, update.cursor)) {
-        editor.moveCursorTo(update.cursor.row, update.cursor.column)
+        try {
+          editor.moveCursorTo(update.cursor.row, update.cursor.column)
+        } catch (err) {}
       }
       quiet = false
       callbacks.onExternalUpdate && callbacks.onExternalUpdate(update)
     }
   })
 
-  return () => {
+  return (useServer = true) => {
     lastSaveID = uuidv4()
     const message = {
       type: "save",
@@ -212,7 +214,7 @@ export const mace: (args: MaceArguments) => () => void = ({ editor, id, context,
       cursor: Cursor.check(editor.selection.getCursor()),
     } as SaveMessage
     deltas = []
-    context.save(message)
+    context.save(message, useServer)
   }
 }
 
@@ -259,7 +261,9 @@ export class MaceEditor extends Component<MaceProps> {
       return true
     }
     if (this.aceRef.current?.editor?.getValue() === this.props.value) {
-      this.aceRef.current?.editor.moveCursorTo(theirCursor.row, theirCursor.column)
+      try {
+        this.aceRef.current?.editor.moveCursorTo(theirCursor.row, theirCursor.column)
+      } catch (err) {}
       return true
     } else {
       return false
