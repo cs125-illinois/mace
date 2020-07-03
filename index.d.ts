@@ -1,7 +1,5 @@
 export {
-  MaceEditor,
   MaceProvider,
-  MaceProps,
   MaceContext,
   withMaceConnected,
   WithMaceConnected,

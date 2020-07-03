@@ -7,7 +7,7 @@ export default ["cjs", "es"].map((format) => ({
   input: "./client/index.tsx",
   output: {
     format: "cjs",
-    file: "./client/dist/index.cjs.js",
+    file: `./client/dist/index.${format}.js`,
     sourcemap: true,
     strict: false,
   },

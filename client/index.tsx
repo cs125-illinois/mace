@@ -1,7 +1,6 @@
-import React, { Component, ReactElement, createContext, ReactNode, createRef, useContext } from "react"
+import React, { Component, ReactElement, createContext, ReactNode, useContext } from "react"
 import PropTypes from "prop-types"
 
-import AceEditor, { IAceOptions } from "react-ace"
 import { IAceEditor } from "react-ace/lib/types"
 import ReconnectingWebSocket from "reconnecting-websocket"
 import { PingWS, filterPingPongMessages } from "@cs125/pingpongws"
@@ -9,7 +8,7 @@ import { PingWS, filterPingPongMessages } from "@cs125/pingpongws"
 import { v4 as uuidv4 } from "uuid"
 import queryString from "query-string"
 
-import { Delta, SaveMessage, ConnectionQuery, UpdateMessage, GetMessage, Cursor as MaceCursor, Cursor } from "../types"
+import { Delta, SaveMessage, ConnectionQuery, UpdateMessage, GetMessage, Cursor } from "../types"
 
 import { String } from "runtypes"
 const VERSION = String.check(process.env.npm_package_version)
@@ -221,119 +220,6 @@ export const mace: (args: MaceArguments) => (useServer?: boolean) => void = ({ e
     } as SaveMessage
     deltas = []
     context.save(message, useServer)
-  }
-}
-
-export interface MaceProps extends IAceOptions {
-  id: string
-  onExternalUpdate?: (update: UpdateMessage) => void
-  onSave?: (value: string) => void
-}
-export class MaceEditor extends Component<MaceProps> {
-  static contextType = MaceContext
-  declare context: React.ContextType<typeof MaceContext>
-
-  static propTypes = {
-    id: PropTypes.string,
-  }
-
-  private aceRef = createRef<AceEditor>()
-
-  private lastSaveID: string | undefined
-  private value: string
-  private deltas: Array<Delta> = []
-  private cursor: MaceCursor | undefined
-
-  constructor(props: MaceProps, context: MaceContext) {
-    super(props, context)
-    this.value = props.value
-    context.register(this.props.id, this.update)
-  }
-
-  componentWillUnmount(): void {
-    if (this.cursorTimer) {
-      clearTimeout(this.cursorTimer)
-    }
-  }
-
-  syncCursor = (theirCursor: Cursor): boolean => {
-    const ourCursor = this.aceRef.current?.editor.selection.getCursor()
-    if (
-      Cursor.guard(ourCursor) &&
-      Cursor.guard(theirCursor) &&
-      ourCursor.row === theirCursor.row &&
-      ourCursor.column === theirCursor.column
-    ) {
-      return true
-    }
-    if (this.aceRef.current?.editor?.getValue() === this.props.value) {
-      try {
-        this.aceRef.current?.editor.moveCursorTo(theirCursor.row, theirCursor.column)
-      } catch (err) {}
-      return true
-    } else {
-      return false
-    }
-  }
-
-  private cursorTimer: NodeJS.Timeout | undefined
-  update: UpdateFunction = (update: UpdateMessage) => {
-    if (update.saveId !== this.lastSaveID && this.props.onExternalUpdate) {
-      this.props.onExternalUpdate(update)
-      if (this.cursorTimer) {
-        clearTimeout(this.cursorTimer)
-      }
-      if (!this.syncCursor(update.cursor)) {
-        this.cursorTimer = setTimeout(() => {
-          this.syncCursor(update.cursor)
-        }, 10)
-      }
-    } else if (update.saveId === this.lastSaveID && this.props.onSave) {
-      this.props.onSave(update.value)
-    }
-  }
-
-  setValue = (value: string): void => {
-    this.aceRef?.current?.editor.setValue(value)
-  }
-
-  save = (): void => {
-    const cursor = MaceCursor.check(this.cursor || this.aceRef.current?.editor.selection.getCursor())
-    this.lastSaveID = uuidv4()
-    const message = {
-      type: "save",
-      editorId: this.props.id,
-      saveId: this.lastSaveID,
-      value: this.value,
-      deltas: [...this.deltas],
-      cursor,
-    } as SaveMessage
-    this.deltas = []
-    this.context.save(message)
-  }
-
-  render(): ReactElement {
-    const { id, children, onChange, onCursorChange, ...aceProps } = this.props // eslint-disable-line @typescript-eslint/no-unused-vars
-
-    return (
-      <AceEditor
-        ref={this.aceRef}
-        onChange={(value, delta): void => {
-          this.value = value
-          this.deltas.push(Delta.check({ ...delta, timestamp: new Date().toISOString() }))
-          if (onChange) {
-            onChange(value, delta)
-          }
-        }}
-        onCursorChange={(): void => {
-          this.cursor = MaceCursor.check(this.aceRef.current?.editor.selection.getCursor())
-          if (onCursorChange) {
-            onCursorChange()
-          }
-        }}
-        {...aceProps}
-      />
-    )
   }
 }
 
