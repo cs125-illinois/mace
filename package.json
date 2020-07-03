@@ -6,7 +6,7 @@
   "homepage": "https://github.com/cs125-illinois/mace",
   "repository": "https://github.com/cs125-illinois/mace",
   "bugs": "https://github.com/cs125-illinois/mace/issues",
-  "version": "2020.5.4",
+  "version": "2020.7.0",
   "main": "client/dist/index.cjs.js",
   "files": [
     "client/dist/**/*"
