@@ -14,9 +14,14 @@ import { OAuth2Client } from "google-auth-library"
 import WebSocket from "ws"
 import { PongWS, filterPingPongMessages } from "@cs125/pingpongws"
 
-import { SaveMessage, ConnectionQuery, UpdateMessage, GetMessage, ServerStatus, ClientId } from "../types"
+import { SaveMessage, ConnectionQuery, UpdateMessage, GetMessage, ServerStatus, ClientId, Versions } from "../types"
 
 import { Array, String } from "runtypes"
+
+const VERSIONS = {
+  commit: String.check(process.env.GIT_COMMIT),
+  server: String.check(process.env.npm_package_version),
+}
 
 const app = new Koa()
 const router = new Router<Record<string, unknown>, { ws: () => Promise<WebSocket> }>()
@@ -63,7 +68,7 @@ async function doUpdate(clientId: ClientId, saveMessage: SaveMessage): Promise<v
   )
 }
 
-async function doSave(clientId: ClientId, saveMessage: SaveMessage): Promise<void> {
+async function doSave(clientId: ClientId, saveMessage: SaveMessage, versions: Versions): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { type, ...savedContent } = saveMessage
 
@@ -71,6 +76,7 @@ async function doSave(clientId: ClientId, saveMessage: SaveMessage): Promise<voi
     timestamp: new Date(),
     ...clientId,
     saved: savedContent,
+    versions,
   })
   await doUpdate(clientId, saveMessage)
 }
@@ -108,7 +114,18 @@ router.get("/", async (ctx) => {
     return
   }
   const connectionQuery = ConnectionQuery.check(ctx.request.query)
-  const { browserId } = connectionQuery
+  const { browserId, version, commit } = connectionQuery
+
+  const versions = Versions.check({
+    version: {
+      server: VERSIONS.server,
+      client: version,
+    },
+    commit: {
+      server: VERSIONS.commit,
+      client: commit,
+    },
+  })
 
   const { googleToken: idToken } = connectionQuery
   let email
@@ -143,7 +160,7 @@ router.get("/", async (ctx) => {
         if (message.value.length > maxEditorSize) {
           return ctx.throw(400, "Content too large")
         }
-        await doSave(clientId, message)
+        await doSave(clientId, message, versions)
         serverStatus.counts.save++
       } else if (GetMessage.guard(message)) {
         serverStatus.counts.get++

@@ -1,5 +1,17 @@
 import { Record, Partial, Number, Static, String, Array, Literal, Union } from "runtypes"
 
+export const Versions = Record({
+  commit: Record({
+    client: String,
+    server: String,
+  }),
+  version: Record({
+    client: String,
+    server: String,
+  }),
+})
+export type Versions = Static<typeof Versions>
+
 export const DeltaLocation = Record({
   row: Number,
   column: Number,
@@ -55,6 +67,8 @@ export const ServerMessages = Union(UpdateMessage)
 
 export const ConnectionQuery = Record({
   browserId: String,
+  version: String,
+  commit: String,
 }).And(
   Partial({
     googleToken: String,

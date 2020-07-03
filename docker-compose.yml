@@ -1,5 +1,14 @@
 version: "3"
 services:
+  element-tracker:
+    image: "cs125/element-tracker:latest"
+    depends_on:
+      - mongodb
+    ports:
+      - "8889:8888"
+    environment:
+      - "MONGODB=mongodb://mongodb/demo"
+      - "GOOGLE_CLIENT_IDS=${GOOGLE_CLIENT_IDS}"
   mongodb:
     image: "bitnami/mongodb:4.0"
     ports:

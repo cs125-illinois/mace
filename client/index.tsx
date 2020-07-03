@@ -11,6 +11,10 @@ import queryString from "query-string"
 
 import { Delta, SaveMessage, ConnectionQuery, UpdateMessage, GetMessage, Cursor as MaceCursor, Cursor } from "../types"
 
+import { String } from "runtypes"
+const VERSION = String.check(process.env.npm_package_version)
+const COMMIT = String.check(process.env.GIT_COMMIT)
+
 export interface MaceContext {
   connected: boolean
   register: (editorId: string, updater: UpdateFunction) => void
@@ -62,6 +66,8 @@ export class MaceProvider extends Component<MaceProviderProps, MaceProviderState
     }
     const connectionQuery = ConnectionQuery.check({
       browserId: this.browserId,
+      version: VERSION,
+      commit: COMMIT,
       googleToken: this.props.googleToken,
     })
 
