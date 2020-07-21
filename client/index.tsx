@@ -15,11 +15,13 @@ const VERSION = String.check(process.env.npm_package_version)
 const COMMIT = String.check(process.env.GIT_COMMIT)
 
 export interface MaceContext {
+  available: boolean
   connected: boolean
   register: (editorId: string, updater: UpdateFunction) => void
   save: (message: SaveMessage, useServer?: boolean) => void
 }
 export const MaceContext = createContext<MaceContext>({
+  available: false,
   connected: false,
   register: (): string => {
     throw new Error("Mace provider not set")
@@ -156,7 +158,11 @@ export class MaceProvider extends Component<MaceProviderProps, MaceProviderState
   render(): ReactElement {
     const { connected } = this.state
     const { register, save } = this
-    return <MaceContext.Provider value={{ connected, register, save }}>{this.props.children}</MaceContext.Provider>
+    return (
+      <MaceContext.Provider value={{ available: true, connected, register, save }}>
+        {this.props.children}
+      </MaceContext.Provider>
+    )
   }
 }
 
