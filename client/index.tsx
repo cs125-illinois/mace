@@ -1,32 +1,50 @@
-import React, { Component, ReactElement, createContext, ReactNode, useContext } from "react"
+import React, { createContext, ReactNode, useState, useRef, useEffect, useCallback, useContext } from "react"
 import PropTypes from "prop-types"
 
-import { IAceEditor } from "react-ace/lib/types"
+import { Ace } from "ace-builds"
 import ReconnectingWebSocket from "reconnecting-websocket"
 import { PingWS, filterPingPongMessages } from "@cs125/pingpongws"
+
+import { EventEmitter } from "events"
 
 import { v4 as uuidv4 } from "uuid"
 import queryString from "query-string"
 
-import { Delta, SaveMessage, ConnectionQuery, UpdateMessage, GetMessage, Cursor } from "../types"
+import { AceRecord, stream, getComplete, applyAceRecord } from "@cs125/monace"
 
-import { String } from "runtypes"
+import { ConnectionQuery, ServerMessages, UpdateMessage, GetMessage } from "../types"
+
+import { String, Array } from "runtypes"
 const VERSION = String.check(process.env.npm_package_version)
 const COMMIT = String.check(process.env.GIT_COMMIT)
+
+export interface RegisterOptions {
+  useServer?: boolean
+}
+export type RegisterRequest = {
+  id: string
+  editor: Ace.Editor
+  options?: RegisterOptions
+}
+
+export type SaveEditor = (force?: boolean) => void
+export type EnableEditor = (enabled: boolean) => void
+export type StopEditor = () => void
+export type RegisterResponse = {
+  save: SaveEditor
+  enable: EnableEditor
+  stop: StopEditor
+}
 
 export interface MaceContext {
   available: boolean
   connected: boolean
-  register: (editorId: string, updater: UpdateFunction) => void
-  save: (message: SaveMessage, useServer?: boolean) => void
+  register: (request: RegisterRequest) => RegisterResponse
 }
 export const MaceContext = createContext<MaceContext>({
   available: false,
   connected: false,
-  register: (): string => {
-    throw new Error("Mace provider not set")
-  },
-  save: () => {
+  register: () => {
     throw new Error("Mace provider not set")
   },
 })
@@ -36,212 +54,131 @@ interface MaceProviderProps {
   googleToken?: string
   children: ReactNode
 }
-interface MaceProviderState {
-  connected: boolean
-}
 
-type UpdateFunction = (update: UpdateMessage) => void
+export const MaceProvider: React.FC<MaceProviderProps> = ({ server, googleToken, children }) => {
+  const [connected, setConnected] = useState(false)
 
-export class MaceProvider extends Component<MaceProviderProps, MaceProviderState> {
-  private connection: ReconnectingWebSocket | undefined
+  const client = useRef<string>((typeof window !== "undefined" && localStorage.getItem("mace:id")) || uuidv4())
+  const connection = useRef<ReconnectingWebSocket | undefined>(undefined)
+  const messager = useRef(new EventEmitter())
+  const editors = useRef<Record<string, string>>({})
 
-  private editorUpdaters: Record<string, Array<UpdateFunction>> = {}
-
-  private browserId: string
-
-  constructor(props: MaceProviderProps) {
-    super(props)
-
-    this.browserId = localStorage.getItem("mace") || uuidv4()
-    localStorage.setItem("mace", this.browserId)
-
-    this.state = { connected: this.props.server === undefined }
-  }
-
-  connect = (): void => {
-    if (this.connection) {
-      this.connection.close()
+  useEffect(() => {
+    localStorage.setItem("mace:id", client.current)
+    return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      messager.current?.removeAllListeners()
     }
-    if (!this.props.server) {
-      return
-    }
+  }, [])
+
+  useEffect(() => {
+    connection.current?.close()
+
     const connectionQuery = ConnectionQuery.check({
-      browserId: this.browserId,
+      client: client.current,
       version: VERSION,
       commit: COMMIT,
-      googleToken: this.props.googleToken,
+      googleToken,
     })
-
-    this.connection = PingWS(
-      new ReconnectingWebSocket(`${this.props.server}?${queryString.stringify(connectionQuery)}`)
+    connection.current = PingWS(
+      new ReconnectingWebSocket(`${server}?${queryString.stringify(connectionQuery)}`, [], { startClosed: true })
     )
-    this.connection.addEventListener("open", () => {
-      this.setState({ connected: true })
-      Object.keys(this.editorUpdaters).forEach((editorId) => {
-        const message = GetMessage.check({ type: "get", editorId })
-        this.connection?.send(JSON.stringify(message))
+
+    connection.current.addEventListener("open", () => {
+      setConnected(true)
+      Object.values(editors.current).forEach((id) => {
+        connection.current?.send(JSON.stringify(GetMessage.check({ type: "get", id })))
       })
     })
-    this.connection.addEventListener("close", () => {
-      this.setState({ connected: false })
-    })
-    this.connection.addEventListener(
+    connection.current.addEventListener("close", () => setConnected(false))
+
+    connection.current.addEventListener(
       "message",
       filterPingPongMessages(({ data }) => {
-        const message = JSON.parse(data)
-        if (UpdateMessage.guard(message)) {
-          this.update(message)
+        const response = JSON.parse(data)
+        if (!ServerMessages.guard(response)) {
+          console.error(`Bad message: ${JSON.stringify(response, null, 2)}`)
+          return
+        }
+        if (UpdateMessage.guard(response)) {
+          messager.current.emit(response.id, response)
         }
       })
     )
-  }
 
-  componentDidMount(): void {
-    this.connect()
-  }
+    connection.current.reconnect()
+    return (): void => connection.current?.close()
+  }, [server, googleToken])
 
-  componentDidUpdate(prevProps: MaceProviderProps): void {
-    if (prevProps.googleToken === this.props.googleToken) {
-      return
-    }
-    this.connect()
-  }
+  const register = useCallback((request: RegisterRequest) => {
+    const { id, editor, options } = request
+    const view = uuidv4()
+    editors.current[view] = id
+    const useServer = options?.useServer !== undefined ? options.useServer : true
 
-  update = (update: UpdateMessage): void => {
-    const { editorId } = update
-    if (!(editorId in this.editorUpdaters)) {
-      console.debug(`no updater for ${editorId}`)
-      return
-    }
-    this.editorUpdaters[editorId].forEach((updater) => updater(update))
-    localStorage.setItem(`mace:${editorId}`, JSON.stringify(update))
-  }
+    let records: AceRecord[] = []
+    let quiet = false
+    let isEnabled = true
 
-  componentWillUnmount(): void {
-    try {
-      this.connection?.close()
-    } catch (err) {}
-  }
-
-  register = (editorId: string, updater: UpdateFunction): void => {
-    if (!(editorId in this.editorUpdaters)) {
-      this.editorUpdaters[editorId] = []
-    }
-    this.editorUpdaters[editorId].push(updater)
-    try {
-      const update = UpdateMessage.check(JSON.parse(localStorage.getItem(`mace:${editorId}`) as string))
-      if (update) {
-        updater(update)
+    const stopStream = stream(editor, (record: AceRecord) => {
+      !quiet && isEnabled && records.push(record)
+    })
+    const aceListener = (update: UpdateMessage) => {
+      if (!isEnabled || update.view === view) {
+        return
       }
-    } catch (err) {}
-  }
-
-  save = (message: SaveMessage, useServer = true): void => {
-    if (!this.props.server || !useServer) {
-      const update = UpdateMessage.check({
-        type: "update",
-        editorId: message.editorId,
-        saveId: message.saveId,
-        value: message.value,
-        cursor: message.cursor,
-      })
-      this.update(update)
-      return
-    }
-    if (!this.connection || !this.state.connected) {
-      throw new Error("mace server not connected")
-    }
-    SaveMessage.check(message)
-    this.connection.send(JSON.stringify(message))
-  }
-
-  render(): ReactElement {
-    const { connected } = this.state
-    const { register, save } = this
-    return (
-      <MaceContext.Provider value={{ available: true, connected, register, save }}>
-        {this.props.children}
-      </MaceContext.Provider>
-    )
-  }
-}
-
-export interface MaceArguments {
-  editor: IAceEditor
-  id: string
-  context: MaceContext
-  saveCompleted?: (update: UpdateMessage) => void
-  onUpdate?: (value: string, delta: { [key: string]: unknown }) => void
-  onSelectionChange?: (value: string, event: unknown) => void
-  onExternalUpdate?: (update: UpdateMessage) => void
-}
-
-export const cursorsAreEqual: (first: Cursor, second: Cursor) => boolean = (first: Cursor, second: Cursor) => {
-  return first.row === second.row && first.column === second.column
-}
-
-export const mace: (args: MaceArguments) => (useServer?: boolean) => void = ({ editor, id, context, ...callbacks }) => {
-  let lastSaveID: string | undefined
-
-  let deltas: Array<Delta> = []
-  let quiet = false
-  const changeListener = (delta: { [key: string]: unknown }) => {
-    deltas.push(Delta.check({ ...delta, timestamp: new Date().toISOString() }))
-    !quiet && callbacks.onUpdate && callbacks.onUpdate(editor.getValue(), delta)
-  }
-  editor.session.addEventListener("change", changeListener)
-  const selectionChangeListener = (event: unknown) => {
-    !quiet && callbacks.onSelectionChange && callbacks.onSelectionChange(editor.getValue(), event)
-  }
-  editor.addEventListener("changeSelection", selectionChangeListener)
-
-  context.register(id, (update: UpdateMessage) => {
-    if (update.saveId === lastSaveID) {
-      callbacks.saveCompleted && callbacks.saveCompleted(update)
-    } else {
+      const record = Array(AceRecord).guard(update.records) ? update.records.pop() : update.records
       quiet = true
-      const previousPosition = editor.session.selection.toJSON()
-      editor.setValue(update.value)
-      editor.session.selection.fromJSON(previousPosition)
-      const ourCursor = editor.selection.getCursor()
-      if (Cursor.guard(ourCursor) && Cursor.guard(update.cursor) && !cursorsAreEqual(ourCursor, update.cursor)) {
-        try {
-          editor.moveCursorTo(update.cursor.row, update.cursor.column)
-        } catch (err) {}
-      }
+      record && applyAceRecord(editor, record)
       quiet = false
-      callbacks.onExternalUpdate && callbacks.onExternalUpdate(update)
     }
-  })
+    messager.current.addListener(id, aceListener)
 
-  return (useServer = true) => {
-    lastSaveID = uuidv4()
-    const message = {
-      type: "save",
-      editorId: id,
-      saveId: lastSaveID,
-      value: editor.getValue(),
-      deltas,
-      cursor: Cursor.check(editor.selection.getCursor()),
-    } as SaveMessage
-    deltas = []
-    context.save(message, useServer)
-  }
+    const save: SaveEditor = (force = false) => {
+      if (!isEnabled) {
+        return
+      }
+      if (records.length === 0 && !force) {
+        return
+      }
+      const updateMessage = UpdateMessage.check({
+        type: "update",
+        id,
+        view,
+        save: uuidv4(),
+        records: [...records, getComplete(editor)],
+      })
+
+      messager.current.emit(id, updateMessage)
+      localStorage.setItem(`mace:${id}`, JSON.stringify(updateMessage))
+      useServer && connection.current?.send(JSON.stringify(updateMessage))
+
+      records = []
+    }
+    const enable = (enabled: boolean) => {
+      !enabled && save()
+      isEnabled = enabled
+    }
+    const stop: StopEditor = () => {
+      stopStream()
+      messager.current.removeListener(id, aceListener)
+      delete editors.current[id]
+    }
+
+    useServer && connection.current?.send(JSON.stringify(GetMessage.check({ type: "get", id })))
+
+    return { save, enable, stop }
+  }, [])
+
+  return <MaceContext.Provider value={{ available: true, connected, register }}>{children}</MaceContext.Provider>
+}
+
+MaceProvider.propTypes = {
+  server: PropTypes.string.isRequired,
+  googleToken: PropTypes.string,
+  children: PropTypes.node.isRequired,
 }
 
 export const useMace = (): MaceContext => {
   return useContext(MaceContext)
-}
-export const withMaceConnected = (): boolean => {
-  const { connected } = useContext(MaceContext)
-  return connected
-}
-interface WithMaceConnectedProps {
-  children: (connected: boolean) => JSX.Element | null
-}
-export const WithMaceConnected: React.FC<WithMaceConnectedProps> = ({ children }) => {
-  return children(withMaceConnected())
-}
-WithMaceConnected.propTypes = {
-  children: PropTypes.func.isRequired,
 }

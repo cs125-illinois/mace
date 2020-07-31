@@ -1,5 +1,3 @@
-import _ from "lodash"
-
 import Koa from "koa"
 import Router from "koa-router"
 import bodyParser from "koa-bodyparser"
@@ -14,7 +12,9 @@ import { OAuth2Client } from "google-auth-library"
 import WebSocket from "ws"
 import { PongWS, filterPingPongMessages } from "@cs125/pingpongws"
 
-import { SaveMessage, ConnectionQuery, UpdateMessage, GetMessage, ServerStatus, ClientId, Versions } from "../types"
+import { EventEmitter } from "events"
+
+import { ConnectionQuery, GetMessage, ServerStatus, Versions, ClientMessages, UpdateMessage } from "../types"
 
 import { Array, String } from "runtypes"
 
@@ -33,19 +33,18 @@ const { database } = mongodbUri.parse(process.env.MONGODB as string)
 const client = mongo.connect(process.env.MONGODB as string, { useNewUrlParser: true, useUnifiedTopology: true })
 const maceCollection = client.then((c) => c.db(database).collection(process.env.MONGODB_COLLECTION || "mace"))
 
-const maxEditorSize = process.env.MAX_EDITOR_SIZE ? parseInt(process.env.MAX_EDITOR_SIZE) : 32 * 1024
-
 const serverStatus: ServerStatus = ServerStatus.check({
   started: new Date().toISOString(),
   version: process.env.npm_package_version,
   commit: process.env.GIT_COMMIT,
   counts: {
     client: 0,
-    save: 0,
+    update: 0,
     get: 0,
   },
   googleClientIDs,
 })
+/*
 const websocketsForClient: Record<string, WebSocket[]> = {}
 
 function websocketIdFromClientId(clientId: ClientId): string {
@@ -107,14 +106,30 @@ function terminate(clientId: string, ws: WebSocket): void {
   }
   serverStatus.counts.client = _.keys(websocketsForClient).length
 }
+*/
+
+const messager = new EventEmitter()
 
 router.get("/", async (ctx) => {
   if (!ctx.ws) {
     ctx.body = serverStatus
     return
   }
+
   const connectionQuery = ConnectionQuery.check(ctx.request.query)
-  const { browserId, version, commit } = connectionQuery
+  const { version, commit, googleToken, client } = connectionQuery
+
+  let email
+  if (googleToken && googleClient) {
+    try {
+      email = (
+        await googleClient.verifyIdToken({
+          idToken: googleToken,
+          audience: googleClientIDs || [],
+        })
+      ).getPayload()?.email
+    } catch (err) {}
+  }
 
   const versions = Versions.check({
     version: {
@@ -126,52 +141,40 @@ router.get("/", async (ctx) => {
       client: commit,
     },
   })
+  console.log(versions)
 
-  const { googleToken: idToken } = connectionQuery
-  let email
-  if (idToken && googleClient) {
-    try {
-      email = (
-        await googleClient.verifyIdToken({
-          idToken,
-          audience: googleClientIDs || [],
-        })
-      ).getPayload()?.email
-    } catch (err) {}
-  }
-
-  const clientId = ClientId.check({ browserId, origin: ctx.headers.origin, email })
-  const websocketId = websocketIdFromClientId(clientId)
-
+  const clientID = `${ctx.headers.origin}/${email || client}`
   const ws = PongWS(await ctx.ws())
-  if (websocketsForClient[websocketId]) {
-    websocketsForClient[websocketId].push(ws)
-  } else {
-    websocketsForClient[websocketId] = [ws]
-  }
+  serverStatus.counts.client++
+  // const collection = await maceCollection
 
-  serverStatus.counts.client = _.keys(websocketsForClient).length
+  const updateListener = (updateMessage: UpdateMessage) => {
+    ws.emit(JSON.stringify(updateMessage))
+  }
+  messager.addListener(clientID, updateListener)
 
   ws.addEventListener(
     "message",
     filterPingPongMessages(async ({ data }) => {
-      const message = JSON.parse(data.toString())
-      if (SaveMessage.guard(message)) {
-        if (message.value.length > maxEditorSize) {
-          return ctx.throw(400, "Content too large")
-        }
-        await doSave(clientId, message, versions)
-        serverStatus.counts.save++
-      } else if (GetMessage.guard(message)) {
+      const request = JSON.parse(data.toString())
+      if (!ClientMessages.guard(request)) {
+        console.error(`Bad message: ${data}`)
+        return
+      }
+      if (UpdateMessage.guard(request)) {
+        messager.emit(clientID, request)
+        serverStatus.counts.update++
+      } else if (GetMessage.guard(request)) {
         serverStatus.counts.get++
-        await doGet(clientId, message)
-      } else {
-        console.error(`Bad message: ${JSON.stringify(message, null, 2)}`)
       }
     })
   )
   ws.addEventListener("close", () => {
-    terminate(websocketId, ws)
+    messager.removeListener(clientID, updateListener)
+    try {
+      ws.terminate()
+    } catch (err) {}
+    serverStatus.counts.client--
   })
 })
 
