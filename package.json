@@ -39,7 +39,7 @@
   },
   "types": "client/dist/index.d.ts",
   "dependencies": {
-    "@cs125/monace": "^2020.8.10",
+    "@cs125/monace": "^2020.8.11",
     "@cs125/pingpongws": "^2020.5.0",
     "@koa/cors": "^3.1.0",
     "ace-builds": "^1.4.12",
