@@ -18,5 +18,5 @@
       "@cs125/mace": ["./client/"]
     }
   },
-  "exclude": ["example"]
+  "exclude": ["example", "node_modules"]
 }

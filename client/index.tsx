@@ -9,17 +9,24 @@ import { EventEmitter } from "events"
 
 import { v4 as uuidv4 } from "uuid"
 import queryString from "query-string"
+import { debounce } from "throttle-debounce"
 
-import { AceRecord, stream, getComplete, applyAceRecord } from "@cs125/monace"
+import { AceRecord, stream, applyAceRecord, getComplete, applyComplete } from "@cs125/monace"
 
 import { ConnectionQuery, ServerMessages, UpdateMessage, GetMessage } from "../types"
 
-import { String, Array } from "runtypes"
+import { String } from "runtypes"
 const VERSION = String.check(process.env.npm_package_version)
 const COMMIT = String.check(process.env.GIT_COMMIT)
 
 export interface RegisterOptions {
   useServer?: boolean
+  autoSave?: boolean
+  autoSaveDelay?: number
+  streaming?: boolean
+  onSaveStarted?: () => void
+  onSaveCompleted?: () => void
+  onGetCompleted?: () => void
 }
 export type RegisterRequest = {
   id: string
@@ -86,12 +93,12 @@ export const MaceProvider: React.FC<MaceProviderProps> = ({ server, googleToken,
 
     connection.current.addEventListener("open", () => {
       setConnected(true)
-      Object.values(editors.current).forEach((id) => {
-        connection.current?.send(JSON.stringify(GetMessage.check({ type: "get", id })))
-      })
+      const values = [...new Set(Object.values(editors.current))]
+      values.forEach((id) =>
+        connection.current?.send(JSON.stringify(GetMessage.check({ type: "get", id, local: true })))
+      )
     })
     connection.current.addEventListener("close", () => setConnected(false))
-
     connection.current.addEventListener(
       "message",
       filterPingPongMessages(({ data }) => {
@@ -100,7 +107,7 @@ export const MaceProvider: React.FC<MaceProviderProps> = ({ server, googleToken,
           console.error(`Bad message: ${JSON.stringify(response, null, 2)}`)
           return
         }
-        if (UpdateMessage.guard(response)) {
+        if (UpdateMessage.guard(response) || GetMessage.guard(response)) {
           messager.current.emit(response.id, response)
         }
       })
@@ -114,25 +121,16 @@ export const MaceProvider: React.FC<MaceProviderProps> = ({ server, googleToken,
     const { id, editor, options } = request
     const view = uuidv4()
     editors.current[view] = id
+
     const useServer = options?.useServer !== undefined ? options.useServer : true
+    const autoSave = options?.autoSave !== undefined ? options.autoSave : true
+    const autoSaveDelay = options?.autoSaveDelay !== undefined ? options.autoSaveDelay : 1024
+    const streaming = options?.streaming !== undefined ? options.streaming : false
 
     let records: AceRecord[] = []
-    let quiet = false
     let isEnabled = true
-
-    const stopStream = stream(editor, (record: AceRecord) => {
-      !quiet && isEnabled && records.push(record)
-    })
-    const aceListener = (update: UpdateMessage) => {
-      if (!isEnabled || update.view === view) {
-        return
-      }
-      const record = Array(AceRecord).guard(update.records) ? update.records.pop() : update.records
-      quiet = true
-      record && applyAceRecord(editor, record)
-      quiet = false
-    }
-    messager.current.addListener(id, aceListener)
+    let saving: string | undefined
+    let last: string | undefined
 
     const save: SaveEditor = (force = false) => {
       if (!isEnabled) {
@@ -141,31 +139,92 @@ export const MaceProvider: React.FC<MaceProviderProps> = ({ server, googleToken,
       if (records.length === 0 && !force) {
         return
       }
+      const save = uuidv4()
+      if (useServer) {
+        saving = save
+      }
+
+      const toSave = streaming ? [...records] : [...records, getComplete(editor)]
+      records = []
+
       const updateMessage = UpdateMessage.check({
         type: "update",
         id,
         view,
-        save: uuidv4(),
-        records: [...records, getComplete(editor)],
+        save,
+        local: true,
+        streaming,
+        focused: editor.isFocused(),
+        records: toSave,
       })
+      const updateMessageString = JSON.stringify(updateMessage)
 
       messager.current.emit(id, updateMessage)
-      localStorage.setItem(`mace:${id}`, JSON.stringify(updateMessage))
-      useServer && connection.current?.send(JSON.stringify(updateMessage))
-
-      records = []
+      localStorage.setItem(`mace:${id}`, updateMessageString)
+      useServer && connection.current?.send(updateMessageString)
+      useServer && options?.onSaveStarted && options.onSaveStarted()
     }
+    const autoSaver = debounce(autoSaveDelay, save)
+
+    const messageListener = (record: AceRecord) => {
+      if (!isEnabled) {
+        return
+      }
+      records.push(record)
+      if (streaming) {
+        save()
+      } else {
+        autoSave && autoSaver()
+      }
+    }
+    const { stop: stopStream, pause, restart } = stream(editor, messageListener)
+
+    const eventListener = (message: UpdateMessage | GetMessage) => {
+      if (GetMessage.guard(message)) {
+        !message.local && message.id === id && options?.onGetCompleted && options.onGetCompleted()
+        return
+      }
+      const update = UpdateMessage.check(message)
+      if (useServer && update.view === view && update.save === saving && !update.local) {
+        useServer && options?.onSaveCompleted && options.onSaveCompleted()
+        saving = undefined
+        return
+      }
+      if (!isEnabled || update.view === view || update.records.length === 0 || update.save === last) {
+        console.log("Duplicate")
+        return
+      }
+      last = update.save
+      if (!streaming) {
+        const record = update.records[update.records.length - 1]
+        if (record.type !== "complete") {
+          return
+        }
+        pause()
+        record && applyComplete(editor, record, editor.isFocused() && !record.focused)
+        restart()
+      } else {
+        pause()
+        for (const record of update.records) {
+          applyAceRecord(editor, record)
+        }
+        restart()
+      }
+    }
+    messager.current.addListener(id, eventListener)
+
     const enable = (enabled: boolean) => {
       !enabled && save()
       isEnabled = enabled
     }
     const stop: StopEditor = () => {
       stopStream()
-      messager.current.removeListener(id, aceListener)
+      messager.current.removeListener(id, eventListener)
       delete editors.current[id]
     }
 
-    useServer && connection.current?.send(JSON.stringify(GetMessage.check({ type: "get", id })))
+    console.log("Blah")
+    useServer && connection.current?.send(JSON.stringify(GetMessage.check({ type: "get", id, local: true })))
 
     return { save, enable, stop }
   }, [])

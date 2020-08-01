@@ -1,4 +1,4 @@
-import { Record, Partial, Number, Static, String, Array, Literal, Union } from "runtypes"
+import { Record, Partial, Number, Static, String, Array, Literal, Union, Boolean } from "runtypes"
 import { AceRecord } from "@cs125/monace"
 
 export const Versions = Record({
@@ -18,18 +18,21 @@ export const UpdateMessage = Record({
   id: String,
   view: String,
   save: String,
-  records: Union(AceRecord, Array(AceRecord)),
+  local: Boolean,
+  streaming: Boolean,
+  records: Array(AceRecord),
 })
 export type UpdateMessage = Static<typeof UpdateMessage>
 
 export const GetMessage = Record({
   type: Literal("get"),
   id: String,
+  local: Boolean,
 })
 export type GetMessage = Static<typeof GetMessage>
 
 export const ClientMessages = Union(UpdateMessage, GetMessage)
-export const ServerMessages = Union(UpdateMessage)
+export const ServerMessages = Union(UpdateMessage, GetMessage)
 
 export const ConnectionQuery = Record({
   client: String,
