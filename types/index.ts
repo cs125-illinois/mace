@@ -20,6 +20,7 @@ export const UpdateMessage = Record({
   save: String,
   local: Boolean,
   streaming: Boolean,
+  unixtime: Number,
   records: Array(AceRecord),
 })
 export type UpdateMessage = Static<typeof UpdateMessage>

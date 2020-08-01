@@ -92,11 +92,11 @@ export const MaceProvider: React.FC<MaceProviderProps> = ({ server, googleToken,
     )
 
     connection.current.addEventListener("open", () => {
-      setConnected(true)
       const values = [...new Set(Object.values(editors.current))]
       values.forEach((id) =>
         connection.current?.send(JSON.stringify(GetMessage.check({ type: "get", id, local: true })))
       )
+      setConnected(true)
     })
     connection.current.addEventListener("close", () => setConnected(false))
     connection.current.addEventListener(
@@ -131,6 +131,7 @@ export const MaceProvider: React.FC<MaceProviderProps> = ({ server, googleToken,
     let isEnabled = true
     let saving: string | undefined
     let last: string | undefined
+    let lastSave: number | undefined
 
     const save: SaveEditor = (force = false) => {
       if (!isEnabled) {
@@ -147,6 +148,7 @@ export const MaceProvider: React.FC<MaceProviderProps> = ({ server, googleToken,
       const toSave = streaming ? [...records] : [...records, getComplete(editor)]
       records = []
 
+      const lastSave = new Date().valueOf()
       const updateMessage = UpdateMessage.check({
         type: "update",
         id,
@@ -155,6 +157,7 @@ export const MaceProvider: React.FC<MaceProviderProps> = ({ server, googleToken,
         local: true,
         streaming,
         focused: editor.isFocused(),
+        unixtime: lastSave,
         records: toSave,
       })
       const updateMessageString = JSON.stringify(updateMessage)
@@ -191,7 +194,10 @@ export const MaceProvider: React.FC<MaceProviderProps> = ({ server, googleToken,
         return
       }
       if (!isEnabled || update.view === view || update.records.length === 0 || update.save === last) {
-        console.log("Duplicate")
+        return
+      }
+      if (lastSave && update.unixtime < lastSave) {
+        console.log("Rejecting stale save message")
         return
       }
       last = update.save
@@ -223,9 +229,15 @@ export const MaceProvider: React.FC<MaceProviderProps> = ({ server, googleToken,
       delete editors.current[id]
     }
 
-    console.log("Blah")
     useServer && connection.current?.send(JSON.stringify(GetMessage.check({ type: "get", id, local: true })))
-
+    try {
+      const previous = localStorage.getItem(`mace:${id}`)
+      if (previous && UpdateMessage.guard(JSON.parse(previous))) {
+        eventListener(JSON.parse(previous))
+      } else {
+        localStorage.removeItem(`mace:${id}`)
+      }
+    } catch (err) {}
     return { save, enable, stop }
   }, [])
 
